@@ -1,0 +1,196 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Poppins:wght@300;500;700&display=swap');
+
+:root {
+    --gold: #D4AF37;
+    --bronze: #887333;
+    --dark-bg: #050505;
+    --card-bg: rgba(28, 28, 28, 0.85);
+    --danger: #FF3333;
+    --success: #00FF00;
+}
+
+body {
+    margin: 0; 
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
+    background-color: var(--dark-bg);
+    /* FIXED: Matches the exact file name in your static/assets folder */
+    background-image: url('../assets/login_bg.png.png');
+    background-size: cover; 
+    background-attachment: fixed;
+    color: #FFF; 
+    display: flex; 
+    height: 100vh; 
+    overflow: hidden;
+}
+
+/* Header Branding */
+.top-header {
+    position: absolute; 
+    top: 0; 
+    width: 100%; 
+    height: 70px;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    padding: 0 30px; 
+    background: rgba(0, 0, 0, 0.9);
+    border-bottom: 2px solid var(--gold); 
+    z-index: 1000; 
+    box-sizing: border-box;
+}
+.top-header img { 
+    height: 50px; 
+}
+
+/* Sidebar */
+.sidebar {
+    width: 260px; 
+    background: rgba(10, 10, 10, 0.95);
+    border-right: 1px solid var(--bronze);
+    padding: 90px 20px 20px 20px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px;
+}
+.sidebar .powered-by { 
+    margin-top: auto; 
+    text-align: center; 
+}
+.sidebar .powered-by img { 
+    width: 120px; 
+    opacity: 0.8; 
+}
+
+.nav-btn {
+    background: transparent; 
+    color: #FFF; 
+    border: 1px solid #333;
+    padding: 12px; 
+    border-radius: 8px; 
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif; 
+    font-weight: 600;
+    text-align: left; 
+    transition: 0.3s;
+}
+.nav-btn i { 
+    margin-right: 10px; 
+    color: var(--gold); 
+}
+.nav-btn:hover, .nav-btn.active {
+    background: var(--gold); 
+    color: #000; 
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+}
+.nav-btn:hover i, .nav-btn.active i { 
+    color: #000; 
+}
+
+/* Main Content */
+.main { 
+    flex: 1; 
+    padding: 90px 40px 40px 40px; 
+    overflow-y: auto; 
+}
+.section { 
+    display: none; 
+    animation: fadeIn 0.4s ease; 
+}
+.section.active { 
+    display: block; 
+}
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(10px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
+
+/* Cards & Forms */
+.card {
+    background: var(--card-bg); 
+    backdrop-filter: blur(10px);
+    border: 1px solid #333; 
+    border-radius: 12px; 
+    padding: 20px; 
+    margin-bottom: 20px;
+}
+.grid-2 { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 20px; 
+}
+.input {
+    width: 100%; 
+    padding: 12px; 
+    background: #111; 
+    color: #FFF;
+    border: 1px solid var(--bronze); 
+    border-radius: 6px; 
+    box-sizing: border-box; 
+    font-family: inherit;
+}
+.input:focus { 
+    outline: none; 
+    border-color: var(--gold); 
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.5); 
+}
+.btn {
+    padding: 12px 20px; 
+    background: var(--gold); 
+    color: #000;
+    border: none; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-weight: bold; 
+    width: 100%; 
+    transition: 0.3s;
+}
+.btn:hover { 
+    background: #FFF; 
+    box-shadow: 0 0 15px rgba(255,255,255,0.5); 
+}
+.result-box { 
+    margin-top: 15px; 
+    padding: 10px; 
+    border-radius: 6px; 
+    background: #000; 
+    text-align: center; 
+}
+
+/* Founders Profile */
+.founders-box { 
+    display: flex; 
+    justify-content: space-around; 
+    background: #050505; 
+    padding: 15px; 
+    border-radius: 10px; 
+    border: 1px solid var(--bronze); 
+}
+.founder { 
+    text-align: center; 
+}
+.founder img { 
+    width: 80px; 
+    height: 80px; 
+    border-radius: 50%; 
+    border: 2px solid var(--gold); 
+    object-fit: cover; 
+}
+.founder h4 { 
+    margin: 10px 0 0 0; 
+    color: var(--gold); 
+    font-size: 14px; 
+}
+.founder p { 
+    margin: 0; 
+    font-size: 11px; 
+    color: #AAA; 
+}
+
+/* FIXED: Added missing utility classes used in index.html */
+.mb-2 { 
+    margin-bottom: 10px; 
+}
+.mt-2 { 
+    margin-top: 10px; 
+}

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bhajrang Fitness | Enterprise Dashboard</title>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dynamic_theme.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="top-header">
+        <img src="{{ url_for('static', filename='assets/app_logo.png.png') }}" alt="Gym logo featuring a dynamic athletic emblem and the brand name Bhajrang Fitness">
+        <h2 style="color: var(--gold); font-family: 'Montserrat'; margin: 0; letter-spacing: 2px;">BHAJRANG FITNESS</h2>
+        <img src="{{ url_for('static', filename='assets/rb_warrior_logo.png.png') }}" alt="RB Warrior brand logo showing a bold warrior figure">
+    </div>
+
+    <div class="sidebar">
+        <button class="nav-btn active" onclick="app.switchTab('dash')"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
+        <button class="nav-btn" onclick="app.switchTab('kiosk')"><i class="fa-solid fa-desktop"></i> Kiosk Scanner</button>
+        <button class="nav-btn" onclick="app.switchTab('registration')"><i class="fa-solid fa-user-plus"></i> Add Member</button>
+        <button class="nav-btn" onclick="app.switchTab('billing')"><i class="fa-solid fa-file-invoice-dollar"></i> Billing & Invoice</button>
+        <button class="nav-btn" onclick="app.switchTab('ai')"><i class="fa-solid fa-brain"></i> AI Fitness Hub</button>
+        <button class="nav-btn" style="border-color: var(--danger); color: var(--danger); margin-top: 20px;" onclick="app.switchTab('vault')"><i class="fa-solid fa-lock"></i> Ghost Vault</button>
+        
+        <div class="powered-by">
+            <img src="{{ url_for('static', filename='assets/creative_2_logo.png.png') }}" alt="Creative Fitness Galaxy 2.0 logo">
+        </div>
+    </div>
+
+    <div class="main">
+        
+        <div id="dash" class="section active">
+            <div class="grid-2">
+                <div>
+                    <h2 style="color: var(--gold);"><i class="fa-solid fa-crown"></i> Leadership</h2>
+                    <div class="founders-box">
+                        <div class="founder">
+                            <img src="{{ url_for('static', filename='assets/founder_coach.png.png') }}" alt="Founder and head coach Rajib Biswas smiling confidently">
+                            <h4>Rajib Biswas</h4>
+                            <p>Founder & Head Coach</p>
+                        </div>
+                        <div class="founder">
+                            <img src="{{ url_for('static', filename='assets/partner_coach.png.png') }}" alt="Co-founder and operations head posing professionally">
+                            <h4>Co-Founder</h4>
+                            <p>Operations Head</p>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h2 style="color: var(--success);"><i class="fa-solid fa-server"></i> System Status</h2>
+                    <div class="card" style="border-top: 4px solid var(--success);">
+                        <h3>Core Engine: <span style="color: var(--success);">ONLINE</span></h3>
+                        <p class="text-muted">Bhajrang Database, AI, and Vision securely connected.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="kiosk" class="section">
+            <h2 style="color: var(--gold);"><i class="fa-solid fa-tablet-screen-button"></i> Security Kiosk</h2>
+            <div class="grid-2">
+                <div class="card" style="border-color: var(--success);">
+                    <h3 style="color: var(--success);">📷 Face Biometric</h3>
+                    <input type="text" id="face_name" class="input mb-2" placeholder="Warrior ID">
+                    <button class="btn" style="background: var(--success); color: #000; margin-top: 10px;" onclick="app.faceScan()">Scan Face</button>
+                </div>
+                <div class="card" style="border-color: var(--gold);">
+                    <h3 style="color: var(--gold);">📱 QR Code</h3>
+                    <input type="text" id="qr_data" class="input mb-2" placeholder="Tap & Scan QR">
+                    <button class="btn" style="margin-top: 10px;" onclick="app.qrScan()">Submit QR</button>
+                </div>
+            </div>
+            <div class="result-box" id="kiosk-result" style="border: 1px solid #333;">Awaiting input...</div>
+        </div>
+
+        <div id="registration" class="section">
+            <h2 style="color: var(--gold);"><i class="fa-solid fa-user-plus"></i> New Warrior Registration</h2>
+            <div class="card" style="max-width: 600px; margin: 0 auto; border: 2px solid var(--gold);">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img id="photo-preview" src="{{ url_for('static', filename='assets/default_member.png.png') }}" alt="Member Photo" style="width: 100px; height: 100px; border-radius: 50%; border: 2px solid var(--gold); object-fit: cover; margin-bottom: 10px;">
+                    <br>
+                    <label for="member_photo" style="background: #1C1C1C; border: 1px solid var(--gold); padding: 5px 15px; cursor: pointer; border-radius: 5px; font-size: 13px;"><i class="fa-solid fa-camera"></i> Upload Photo</label>
+                    <input type="file" id="member_photo" accept="image/*" style="display: none;" onchange="app.previewPhoto(event)">
+                </div>
+                <div class="grid-2" style="margin-bottom: 15px;">
+                    <input type="text" id="reg_name" class="input" placeholder="Full Name">
+                    <input type="tel" id="reg_phone" class="input" placeholder="Mobile No.">
+                </div>
+                <div class="grid-2" style="margin-bottom: 15px;">
+                    <input type="date" id="reg_dob" class="input">
+                    <select id="reg_gender" class="input">
+                        <option value="" disabled selected>Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                    </select>
+                </div>
+                <textarea id="reg_address" class="input" placeholder="Address" rows="2" style="margin-bottom: 15px; resize: none;"></textarea>
+                <button class="btn" onclick="app.submitRegistration()">Save Member Profile</button>
+                <div id="reg-msg" class="result-box mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <div id="billing" class="section">
+            <h2 style="color: var(--gold);"><i class="fa-solid fa-file-invoice-dollar"></i> Create Invoice</h2>
+            <div class="card" style="max-width: 600px; margin: 0 auto;">
+                <input type="text" id="inv_id" class="input" placeholder="Member ID (e.g. RB#2626)" style="margin-bottom: 15px;">
+                <select id="inv_package" class="input" style="margin-bottom: 15px;" onchange="app.calcTotal()">
+                    <option value="0" disabled selected>Select Membership Package</option>
+                    <option value="1500">1 Month - ₹1,500</option>
+                    <option value="4000">3 Months - ₹4,000</option>
+                    <option value="7500">6 Months - ₹7,500</option>
+                    <option value="12000">1 Year - ₹12,000</option>
+                </select>
+                <input type="number" id="inv_discount" class="input" placeholder="Discount (₹) - Default: 0" style="margin-bottom: 15px;" onkeyup="app.calcTotal()">
+                
+                <div style="background: #111; border: 1px solid var(--bronze); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span>Subtotal:</span> <span id="lbl_sub">₹0</span></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: var(--gold);"><span>Discount:</span> <span id="lbl_disc">- ₹0</span></div>
+                    <hr style="border-color: #333;">
+                    <div style="display: flex; justify-content: space-between; font-size: 20px; font-weight: bold; color: var(--success);"><span>Grand Total:</span> <span id="lbl_total">₹0</span></div>
+                </div>
+                
+                <button class="btn" style="background: var(--success);" onclick="app.generateInvoice()">Generate & Print Receipt</button>
+                <div id="inv-msg" class="result-box mt-2" style="display:none;"></div>
+            </div>
+        </div>
+
+        <div id="ai" class="section">
+            <h2 style="color: var(--gold);"><i class="fa-solid fa-brain"></i> AI Engine</h2>
+            <div class="card">
+                <select id="agent_type" class="input" style="margin-bottom: 15px;">
+                    <option value="workout">🏋️ Workout Plan</option>
+                    <option value="diet">🥗 Diet Chart</option>
+                    <option value="business">📈 Marketing & Business</option>
+                </select>
+                <textarea id="prompt" class="input" rows="3" placeholder="Command AI..."></textarea>
+                <button class="btn" style="margin-top: 15px;" onclick="app.askAI()">Execute Command</button>
+                <div class="result-box mt-2" id="ai-response" style="text-align: left; white-space: pre-line;"></div>
+            </div>
+        </div>
+
+        <div id="vault" class="section">
+            <h2 style="color: var(--danger);"><i class="fa-solid fa-user-secret"></i> Ghost Vault</h2>
+            <div class="card" style="border-color: var(--danger);">
+                <input type="password" id="pin" class="input" placeholder="Admin PIN">
+                <button class="btn" style="background: var(--danger); color: white; margin-top: 15px;" onclick="app.unlockVault()">Unlock Vault</button>
+                <div class="result-box mt-2" id="vault-msg"></div>
+            </div>
+        </div>
+
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/app_logic.js') }}"></script>
+</body>
+</html>

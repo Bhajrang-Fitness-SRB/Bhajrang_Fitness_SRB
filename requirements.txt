@@ -1,0 +1,14 @@
+Flask==3.0.0
+SQLAlchemy
+psycopg2-binary
+python-dotenv==1.0.0
+requests==2.31.0
+google-genai
+groq==0.4.1
+openai
+huggingface_hub==0.19.4
+qrcode==7.4.2
+cloudinary==1.36.0
+gunicorn==21.2.0
+redis
+gunicorn
