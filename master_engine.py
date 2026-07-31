@@ -1,242 +1,187 @@
 import os
 import sys
-import math
-import requests
 import time
-from datetime import datetime
+import datetime
+import requests
+import traceback
 from flask import Flask, render_template, request, jsonify
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
-from sqlalchemy.orm import declarative_base, sessionmaker
+from flask_cors import CORS
 from dotenv import load_dotenv
-from google import genai
-from groq import Groq
-from openai import OpenAI
 
 # ==========================================
-# 1. INITIALIZATION & VAULT CONFIG
+# ☁️ CLOUD & AI LIBRARIES
+# ==========================================
+from supabase import create_client, Client
+import cloudinary
+import cloudinary.uploader
+from google import genai
+
+# 🤖 Import Groq for Dual AI Core
+try:
+    from groq import Groq
+except ImportError:
+    pass
+
+try:
+    from whatsapp_telegram_bot import send_telegram_alert, send_whatsapp_message, send_attendance_whatsapp
+except ImportError:
+    def send_telegram_alert(*args, **kwargs): pass
+    def send_whatsapp_message(*args, **kwargs): pass
+    def send_attendance_whatsapp(*args, **kwargs): pass
+
+try:
+    from billing_invoice_gateway import generate_invoice_pdf
+except ImportError:
+    def generate_invoice_pdf(*args, **kwargs): return "INV-000", "#"
+
+try:
+    from id_generator import generate_warrior_id
+except ImportError:
+    def generate_warrior_id(*args, **kwargs): return False
+
+# ==========================================
+# 1. INITIALIZATION & CONFIG
 # ==========================================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 VAULT_ENV_PATH = os.path.join(BASE_DIR, 'master_vault.env')
-
-# Load secrets first so API clients can access them
 load_dotenv(VAULT_ENV_PATH)
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.secret_key = os.getenv("SECRET_KEY", "creative2_0_super_secret_key")
-
+CORS(app) 
+app.secret_key = os.getenv("SECRET_KEY", "SRB_BFRB_2026")
 GYM_NAME = "Bhajrang Fitness SRB"
-ADMIN_PIN = os.getenv("ADMIN_PIN", "925529")
+
+# 🔐 SECRET PORTAL URLs
+ADMIN_URL = os.getenv("ADMIN_PORTAL_URL", "/villain")
+DESK_URL = os.getenv("DESK_PORTAL_URL", "/administration")
+STAFF_URL = os.getenv("STAFF_PORTAL_URL", "/commander")
+STUDENT_URL = os.getenv("STUDENT_PORTAL_URL", "/warrior")
+
+# 🔑 MASTER API KEYS
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_KEY = os.getenv("GROQ_API_KEY")
+CLOUDINARY_KEY = os.getenv("CLOUDINARY_API_KEY")
 
 # ==========================================
-# 2. AI CLIENTS SETUP
+# 2. CLOUD INFRASTRUCTURE SETUP
 # ==========================================
-# Gemini client initializes AFTER env is loaded (Kept for SDK compatibility if needed elsewhere)
-gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY")) if os.getenv("GEMINI_API_KEY") else None
+supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+supabase_key = os.environ.get("SUPABASE_KEY", "")
+supabase: Client = None
 
-# Placeholder for backup clients
-groq_client = None
-openai_client = None
-
-# Phase 3 Automation Bots Import
-sys.path.append(os.path.join(BASE_DIR, '03_Automation_Bots'))
-try:
-    from emergency_medical_sos import trigger_sos_protocol
-    from billing_invoice_gateway import generate_invoice_data
-    from whatsapp_telegram_bot import send_telegram_alert
-    BOTS_ONLINE = True
-except Exception as e:
-    print(f"⚠️ Warning: Bot modules error. Reason: {e}")
-    BOTS_ONLINE = False
-
-# ==========================================
-# 3. MEGA DATABASE ARCHITECTURE
-# ==========================================
-Base = declarative_base()
-
-class Member(Base):
-    __tablename__ = 'members'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    member_id = Column(String(50), unique=True)
-    full_name = Column(String(100))
-    phone = Column(String(20))
-    blood_group = Column(String(10), default="O+")
-    bhajrang_coins = Column(Float, default=0.0)
-    status = Column(String(20), default="Active")
-    join_date = Column(DateTime, default=datetime.now)
-
-db_path = os.path.join(BASE_DIR, 'Bhajrang_Master.db')
-db_engine = create_engine(f"sqlite:///{db_path}")
-Base.metadata.create_all(db_engine)
-SessionLocal = sessionmaker(bind=db_engine)
-
-# ==========================================
-# 4. FACE VISION ENGINE (STRICT CONSISTENCY)
-# ==========================================
-class FaceVisionEngine:
-    @staticmethod
-    def verify_face(member_name):
-        # Strict Facial Consistency Protocol
-        # Priorities: founder_coach.png reference, identity retention, unaltered core structure.
-        return True, f"Strict Facial Consistency Verified. Match 99.8% for {member_name}"
-
-# ==========================================
-# 5. UNIFIED PORTAL ROUTES
-# ==========================================
-@app.route('/')
-def home(): 
-    return render_template('index.html', role="DeskTab", gym_name=GYM_NAME)
-
-@app.route('/vault', methods=['POST'])
-def ghost_vault():
-    data = request.json or {}
-    if data.get('pin') == ADMIN_PIN: 
-        return jsonify({"status": "success", "message": "Military Vault Unlocked. Welcome Admin."})
-    return jsonify({"status": "error", "message": "Intruder Alert! Access Denied."}), 403
-
-# ==========================================
-# 6. HIGH-TECH APIs (Geo, QR, Vision, SOS)
-# ==========================================
-@app.route('/api/geolocation_check', methods=['POST'])
-def geolocation_check():
-    data = request.json or {}
-    lat = data.get('lat')
-    lng = data.get('lng')
-    
-    if lat is None or lng is None:
-        return jsonify({"status": "error", "message": "Location data missing."}), 400
-
-    lat, lng = float(lat), float(lng)
-    gym_lat, gym_lng = 22.5726, 88.3639 # Update with SRB coordinates
-    
-    R = 6371000
-    phi_1, phi_2 = math.radians(gym_lat), math.radians(lat)
-    delta_phi = math.radians(lat - gym_lat)
-    delta_lambda = math.radians(lng - gym_lng)
-    a = math.sin(delta_phi / 2.0)**2 + math.cos(phi_1) * math.cos(phi_2) * math.sin(delta_lambda / 2.0)**2
-    distance = R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
-    
-    if distance <= 150: 
-        return jsonify({"status": "success", "message": "Inside Perimeter."})
-    return jsonify({"status": "error", "message": f"Too far ({int(distance)}m). Access Denied."}), 403
-
-@app.route('/api/face_attendance', methods=['POST'])
-def face_attendance():
-    data = request.json or {}
-    name = data.get('full_name', 'Warrior')
-    success, msg = FaceVisionEngine.verify_face(name)
-    if success:
-        return jsonify({"status": "success", "voice": f"{msg}. Welcome. 10 Bhajrang Coins added.", "color": "#00FF00"})
-    return jsonify({"status": "error", "voice": "Face mismatch. Access Denied.", "color": "red"})
-
-@app.route('/api/qr_attendance', methods=['POST'])
-def qr_attendance():
-    data = request.json or {}
-    qr_data = data.get('qr_data')
-    return jsonify({
-        "status": "success" if qr_data else "error", 
-        "voice": "QR Scan Successful" if qr_data else "Invalid QR", 
-        "color": "#00FF00" if qr_data else "red"
-    })
-
-@app.route('/api/sos_alert', methods=['POST'])
-def sos_alert():
-    if BOTS_ONLINE:
-        try:
-            result = trigger_sos_protocol(location_details="Main Desk Terminal")
-            return jsonify(result)
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"SOS Module failed: {str(e)}"})
-            
-    return jsonify({"status": "active", "message": "SOS Dispatched locally (Simulation Mode)."})
-
-@app.route('/api/register_member', methods=['POST'])
-def register_member():
-    data = request.json or {}
-    session = SessionLocal()
+if supabase_url and supabase_key:
     try:
-        new_member = Member(
-            member_id=f"RB{int(time.time())}", 
-            full_name=data.get('name', 'Unknown'), 
-            phone=data.get('phone', '0000000000')
-        )
-        session.add(new_member)
-        session.commit()
-        return jsonify({"status": "success"})
+        supabase = create_client(supabase_url, supabase_key)
+        print("✅ SUPABASE CLOUD DB: SECURED")
     except Exception as e:
-        session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
-    finally:
-        session.close()
+        print(f"❌ SUPABASE DB ERROR: {e}")
+
+c_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+if c_name and CLOUDINARY_KEY:
+    cloudinary.config(cloud_name=c_name, api_key=CLOUDINARY_KEY, api_secret=os.getenv("CLOUDINARY_API_SECRET"), secure=True)
 
 # ==========================================
-# 7. OMNI AI HUB
+# 🚀 3. FRONTEND ROUTES
 # ==========================================
+@app.route(ADMIN_URL)
+@app.route(DESK_URL)
+def admin_portal():
+    try:
+        return render_template('admin.html')
+    except:
+        return render_template('index.html')
+
+@app.route(STUDENT_URL)
+def member_app(): return render_template('member_app.html')
+
+@app.route('/enroll')
+def universal_registration(): return render_template('registration_form.html')
+
+@app.route('/kiosk')
+def kiosk_terminal(): return render_template('kiosk.html')
+
+# ==========================================
+# 📝 4. CORE API ROUTES
+# ==========================================
+@app.route('/api/get_all_members', methods=['GET'])
+def get_all_members():
+    try:
+        res = supabase.table('members').select('*').execute()
+        return jsonify({"status": "success", "members": res.data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/api/registration_sync', methods=['POST'])
+def registration_sync():
+    data = request.json
+    phone = data.get('phone')
+    name = data.get('name')
+    face_base64 = data.get('face_image')
+    
+    image_url = ""
+    if face_base64:
+        try:
+            upload_result = cloudinary.uploader.upload(face_base64, folder="bhajrang_biometrics")
+            image_url = upload_result.get('secure_url')
+        except: pass
+            
+    try:
+        now = datetime.datetime.now()
+        yy = now.strftime("%y")
+        mm = now.strftime("%m")
+        last_4_phone = phone[-4:] if phone and len(phone) >= 4 else "0000"
+        member_id = f"RBF{yy}{mm}{last_4_phone}"
+        passcode = f"{data.get('dob', '').split('-')[1] if len(data.get('dob', '').split('-')) >= 2 else '01'}{member_id[-2:]}"
+        
+        member_data = {
+            "member_id": member_id, "name": name, "phone": phone, "dob": data.get('dob'),
+            "profile_pic": image_url, "joining_date": now.strftime("%Y-%m-%d"), "package": "Active"
+        }
+        supabase.table('members').insert(member_data).execute()
+        supabase.table('ghost_vault').insert({ "name": name, "member_id": member_id, "mobile": phone, "passcode": passcode, "join_date": now.strftime("%Y-%m-%d %H:%M:%S") }).execute()
+        
+        return jsonify({"status": "success", "message": f"Profile Secured! ID: {member_id}"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/api/generate_invoice', methods=['POST'])
+def create_invoice():
+    data = request.json
+    member_id = data.get('member_id')
+    pkg = float(data.get('package', 0))
+    discount = float(data.get('discount', 0))
+    try:
+        inv_no, pdf_url = generate_invoice_pdf(member_id, pkg, discount, GYM_NAME, os.getenv("UPI_ID", ""))
+        return jsonify({"status": "success", "message": "Invoice securely generated", "pdf_url": pdf_url})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route('/api/ai_master', methods=['POST'])
 def ai_master():
     data = request.json
-    agent = data.get('agent_type')
-    prompt = data.get('prompt')
+    prompt = data.get('prompt', '')
+    sys_instruct = "You are the Elite AI Coach for 'Bhajrang Fitness SRB'. Generate professional workout or diet plans."
     
-    prefix_msg = ""
-    system_instruction = f"Act as {GYM_NAME} elite strategist. "
-    
-    if agent == "diet":
-        prefix_msg = "🤖 [AI Diet Coach]:\n"
-    elif agent == "workout":
-        prefix_msg = "🏋️ [AI Fitness Coach]:\n"
-    elif agent == "business":
-        prefix_msg = "📈 [Marketing AI]:\n[SYSTEM OVERRIDE]: Strict facial consistency mode ENABLED.\n"
-
-    final_prompt = system_instruction + prompt
-
-    ai_response = ""
-    model_used = "Offline Fallback"
-    
-    # API Key সিস্টেম থেকে টেনে আনা হচ্ছে
-    api_key = os.getenv("GEMINI_API_KEY")
-    
-    # 🕵️ এখানে আমরা চোর ধরব! বাটন চাপলেই টার্মিনালে প্রিন্ট হবে Key পেয়েছে নাকি পায়নি!
-    print(f"\n---> 🕵️ CHECKING API KEY: '{api_key}' <---")
-
-    # 🚀 DIRECT API CALL
-    if api_key and api_key.strip() != "":
+    if GEMINI_KEY:
         try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-            headers = {'Content-Type': 'application/json'}
-            payload = {
-                "contents": [{"parts": [{"text": final_prompt}]}]
-            }
-            
-            response = requests.post(url, headers=headers, json=payload, timeout=15)
-            
-            if response.status_code == 200:
-                result = response.json()
-                ai_response = result['candidates'][0]['content']['parts'][0]['text']
-                model_used = "Gemini 1.5 Flash (Direct)"
-            else:
-                print(f"❌ GOOGLE REJECTED: {response.status_code} - {response.text}")
+            client = genai.Client(api_key=GEMINI_KEY)
+            full_prompt = f"System Instruction: {sys_instruct}\n\nUser Request: {prompt}"
+            res = client.models.generate_content(model='gemini-1.5-flash', contents=full_prompt)
+            return jsonify({"response": f"[💎 GEMINI] {res.text}"})
         except Exception as e:
-            print(f"❌ CONNECTION ERROR: {e}")
-    else:
-        print("❌ PYTHON API KEY খুঁজে পায়নি! master_vault.env ফাইল চেক করুন।")
+            pass
+    if GROQ_KEY:
+        try:
+            groq_client = Groq(api_key=GROQ_KEY)
+            chat_completion = groq_client.completions.create(
+                model="llama3-8b-8192", prompt=f"{sys_instruct}\n\nUser: {prompt}\nAI:", temperature=0.7, max_tokens=1024
+            )
+            return jsonify({"response": f"[⚡ GROQ] {chat_completion.choices[0].text}"})
+        except Exception as e:
+            return jsonify({"response": f"❌ Both AI Cores Offline: {str(e)}"})
+            
+    return jsonify({"response": "❌ AI Keys missing!"})
 
-    if not ai_response:
-        ai_response = "Cloud AI Offline. Using Local Fallback. (Check API Key or Internet)"
-        model_used = "Local Fallback"
-
-    return jsonify({
-        "status": "success", 
-        "model": model_used,
-        "response": f"{prefix_msg}{ai_response}"
-    })
-# ==========================================
-# 8. SERVER LAUNCHER
-# ==========================================
 if __name__ == '__main__':
-    print("="*65)
-    print(f"🚀 {GYM_NAME} ENTERPRISE ENGINE BOOTING...")
-    print("🤖 AI Agents: STANDBY | 🛡️ Security: MAX | 📱 Bots: ACTIVE")
-    print("="*65)
-    
-    # use_reloader=False stops Windows from crashing (WinError 10038)
-    app.run(debug=True, port=5000, use_reloader=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
