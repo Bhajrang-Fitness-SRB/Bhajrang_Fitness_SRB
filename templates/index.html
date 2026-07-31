@@ -2,156 +2,281 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bhajrang Fitness | Enterprise Dashboard</title>
-    
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/dynamic_theme.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🔱 Bhajrang Fitness SRB | Supreme Master Terminal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --gold: #D4AF37; --gold-light: #F7D26A; --dark-black: #000000; --glass-bg: rgba(10, 10, 10, 0.9); --danger: #FF2A2A; --orange: #FF7700; --yellow: #FFEE00; --success: #00FF66; --info: #00E5FF; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; -webkit-tap-highlight-color: transparent; }
+
+        body { background: radial-gradient(circle at 50% 10%, #150a00 0%, #050200 40%, var(--dark-black) 100%); color: #FFF; height: 100vh; overflow: hidden; display: flex; position: relative; }
+
+        /* MASTER LOADER */
+        #master-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 99999; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.8s ease; }
+        .spinner-ring { width: 60px; height: 60px; border: 3px solid rgba(212,175,55,0.2); border-top: 3px solid var(--gold); border-radius: 50%; animation: spin 1s linear infinite; margin-top: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* SIDEBAR */
+        .sidebar { width: 280px; background: var(--glass-bg); border-right: 1px solid rgba(212,175,55,0.2); display: flex; flex-direction: column; padding: 20px 0; backdrop-filter: blur(25px); z-index: 1000; transition: transform 0.4s; box-shadow: 10px 0 30px rgba(0,0,0,0.9); }
+        .brand-container { text-align: center; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 15px; }
+        .brand-container h2 { font-family: 'Cinzel', serif; color: var(--gold); font-size: 20px; letter-spacing: 2px; }
+        
+        .nav-btn { background: transparent; color: #aaa; border: none; padding: 14px 25px; text-align: left; font-size: 12px; font-weight: 700; text-transform: uppercase; cursor: pointer; transition: 0.3s; width: 100%; border-left: 3px solid transparent; display: flex; align-items: center; gap: 12px; }
+        .nav-btn:hover { background: rgba(255,119,0,0.08); color: #FFF; }
+        .nav-btn.active { background: linear-gradient(90deg, rgba(212,175,55,0.2), transparent); color: var(--gold); border-left: 3px solid var(--gold); }
+        .nav-btn.active i { color: var(--gold); }
+
+        .mobile-header { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 60px; background: rgba(0,0,0,0.95); border-bottom: 1px solid rgba(212,175,55,0.3); z-index: 2000; justify-content: space-between; align-items: center; padding: 0 20px; }
+        .hamburger { background: none; border: none; color: var(--gold); font-size: 24px; cursor: pointer; }
+
+        .main { flex: 1; padding: 30px; overflow-y: auto; height: 100vh; position: relative; }
+        .section { display: none; animation: fadeIn 0.4s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .quote-banner { background: linear-gradient(135deg, rgba(255,119,0,0.15), rgba(212,175,55,0.1)); border: 1px solid var(--orange); border-radius: 14px; padding: 18px 25px; margin-bottom: 25px; position: relative; overflow: hidden; }
+        .quote-text { font-family: 'Cinzel', serif; font-size: 15px; color: var(--yellow); font-weight: 900; }
+
+        .card { background: var(--glass-bg); border: 1px solid rgba(255,255,255,0.08); border-radius: 18px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); margin-bottom: 20px; }
+        .input { width: 100%; background: rgba(0,0,0,0.7); border: 1px solid #333; color: #FFF; padding: 14px; border-radius: 10px; font-size: 14px; outline: none; margin-bottom: 12px; }
+        .input:focus { border-color: var(--orange); }
+        
+        .btn-master { background: linear-gradient(135deg, var(--orange), var(--yellow)); color: #000; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: 900; text-transform: uppercase; cursor: pointer; transition: 0.3s; }
+        
+        /* Tables for Database */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: rgba(0,0,0,0.8); color: var(--gold); padding: 15px; text-align: left; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #333; }
+        td { padding: 15px; border-bottom: 1px solid #222; font-size: 13px; color: #ccc; }
+
+        @media(max-width: 768px) {
+            .sidebar { position: fixed; height: 100%; transform: translateX(-100%); }
+            .sidebar.mobile-open { transform: translateX(0); }
+            .main { padding: 80px 15px 20px 15px; }
+            .mobile-header { display: flex; }
+        }
+    </style>
 </head>
 <body>
 
-    <div class="top-header">
-        <img src="{{ url_for('static', filename='assets/app_logo.png.png') }}" alt="Gym logo featuring a dynamic athletic emblem and the brand name Bhajrang Fitness">
-        <h2 style="color: var(--gold); font-family: 'Montserrat'; margin: 0; letter-spacing: 2px;">BHAJRANG FITNESS</h2>
-        <img src="{{ url_for('static', filename='assets/rb_warrior_logo.png.png') }}" alt="RB Warrior brand logo showing a bold warrior figure">
+    <!-- MASTER LOADER -->
+    <div id="master-loader">
+        <h2 style="font-family: 'Cinzel', serif; color: var(--gold); font-size: 22px; letter-spacing: 3px;">BHAJRANG FITNESS SRB</h2>
+        <div class="spinner-ring"></div>
     </div>
 
-    <div class="sidebar">
-        <button class="nav-btn active" onclick="app.switchTab('dash')"><i class="fa-solid fa-chart-line"></i> Dashboard</button>
-        <button class="nav-btn" onclick="app.switchTab('kiosk')"><i class="fa-solid fa-desktop"></i> Kiosk Scanner</button>
-        <button class="nav-btn" onclick="app.switchTab('registration')"><i class="fa-solid fa-user-plus"></i> Add Member</button>
-        <button class="nav-btn" onclick="app.switchTab('billing')"><i class="fa-solid fa-file-invoice-dollar"></i> Billing & Invoice</button>
-        <button class="nav-btn" onclick="app.switchTab('ai')"><i class="fa-solid fa-brain"></i> AI Fitness Hub</button>
-        <button class="nav-btn" style="border-color: var(--danger); color: var(--danger); margin-top: 20px;" onclick="app.switchTab('vault')"><i class="fa-solid fa-lock"></i> Ghost Vault</button>
-        
-        <div class="powered-by">
-            <img src="{{ url_for('static', filename='assets/creative_2_logo.png.png') }}" alt="Creative Fitness Galaxy 2.0 logo">
+    <!-- MOBILE HEADER -->
+    <div class="mobile-header">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <span style="font-family: 'Cinzel', serif; color: var(--gold); font-weight: 900;">BHAJRANG SRB</span>
+        <div></div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+        <div class="brand-container">
+            <h2>BHAJRANG</h2>
+            <p style="font-size: 9px; color: var(--info); letter-spacing: 2px;">SUPREME COMMAND</p>
         </div>
+        
+        <button class="nav-btn active" onclick="switchTab('dash', this)"><i class="fa-solid fa-chart-pie"></i> Headquarters</button>
+        <button class="nav-btn" onclick="switchTab('calculators', this)"><i class="fa-solid fa-calculator"></i> Calculators</button>
+        <button class="nav-btn" onclick="switchTab('registration', this)"><i class="fa-solid fa-user-plus"></i> Enlist Warrior</button>
+        <button class="nav-btn" onclick="switchTab('directory', this)"><i class="fa-solid fa-server"></i> Cloud Database</button>
+        <button class="nav-btn" onclick="switchTab('billing', this)"><i class="fa-solid fa-file-invoice-dollar"></i> Smart Billing</button>
+        <button class="nav-btn" onclick="switchTab('ai-hub', this)"><i class="fa-solid fa-brain"></i> Omni AI Hub</button>
     </div>
 
+    <!-- MAIN VIEWPORT -->
     <div class="main">
-        
+        <div class="quote-banner">
+            <div id="funky-quote" class="quote-text">"DISCIPLINE OVER MOTIVATION. CONQUER THE GYM TODAY!"</div>
+        </div>
+
+        <!-- 1. HEADQUARTERS -->
         <div id="dash" class="section active">
-            <div class="grid-2">
-                <div>
-                    <h2 style="color: var(--gold);"><i class="fa-solid fa-crown"></i> Leadership</h2>
-                    <div class="founders-box">
-                        <div class="founder">
-                            <img src="{{ url_for('static', filename='assets/founder_coach.png.png') }}" alt="Founder and head coach Rajib Biswas smiling confidently">
-                            <h4>Rajib Biswas</h4>
-                            <p>Founder & Head Coach</p>
-                        </div>
-                        <div class="founder">
-                            <img src="{{ url_for('static', filename='assets/partner_coach.png.png') }}" alt="Co-founder and operations head posing professionally">
-                            <h4>Co-Founder</h4>
-                            <p>Operations Head</p>
-                        </div>
-                    </div>
-                </div>
-                <div>
-                    <h2 style="color: var(--success);"><i class="fa-solid fa-server"></i> System Status</h2>
-                    <div class="card" style="border-top: 4px solid var(--success);">
-                        <h3>Core Engine: <span style="color: var(--success);">ONLINE</span></h3>
-                        <p class="text-muted">Bhajrang Database, AI, and Vision securely connected.</p>
-                    </div>
-                </div>
+            <h2 style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 20px;">Supreme Command Center</h2>
+            <div class="card" style="border-left: 4px solid var(--orange);">
+                <h3 style="color: var(--yellow);"><i class="fa-solid fa-shield-halved"></i> Universal Access Active</h3>
+                <p style="color: #aaa; margin-top: 10px;">Cross-platform synchronization online.</p>
             </div>
         </div>
 
-        <div id="kiosk" class="section">
-            <h2 style="color: var(--gold);"><i class="fa-solid fa-tablet-screen-button"></i> Security Kiosk</h2>
-            <div class="grid-2">
-                <div class="card" style="border-color: var(--success);">
-                    <h3 style="color: var(--success);">📷 Face Biometric</h3>
-                    <input type="text" id="face_name" class="input mb-2" placeholder="Warrior ID">
-                    <button class="btn" style="background: var(--success); color: #000; margin-top: 10px;" onclick="app.faceScan()">Scan Face</button>
-                </div>
-                <div class="card" style="border-color: var(--gold);">
-                    <h3 style="color: var(--gold);">📱 QR Code</h3>
-                    <input type="text" id="qr_data" class="input mb-2" placeholder="Tap & Scan QR">
-                    <button class="btn" style="margin-top: 10px;" onclick="app.qrScan()">Submit QR</button>
-                </div>
-            </div>
-            <div class="result-box" id="kiosk-result" style="border: 1px solid #333;">Awaiting input...</div>
-        </div>
-
-        <div id="registration" class="section">
-            <h2 style="color: var(--gold);"><i class="fa-solid fa-user-plus"></i> New Warrior Registration</h2>
-            <div class="card" style="max-width: 600px; margin: 0 auto; border: 2px solid var(--gold);">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <img id="photo-preview" src="{{ url_for('static', filename='assets/default_member.png.png') }}" alt="Member Photo" style="width: 100px; height: 100px; border-radius: 50%; border: 2px solid var(--gold); object-fit: cover; margin-bottom: 10px;">
-                    <br>
-                    <label for="member_photo" style="background: #1C1C1C; border: 1px solid var(--gold); padding: 5px 15px; cursor: pointer; border-radius: 5px; font-size: 13px;"><i class="fa-solid fa-camera"></i> Upload Photo</label>
-                    <input type="file" id="member_photo" accept="image/*" style="display: none;" onchange="app.previewPhoto(event)">
-                </div>
-                <div class="grid-2" style="margin-bottom: 15px;">
-                    <input type="text" id="reg_name" class="input" placeholder="Full Name">
-                    <input type="tel" id="reg_phone" class="input" placeholder="Mobile No.">
-                </div>
-                <div class="grid-2" style="margin-bottom: 15px;">
-                    <input type="date" id="reg_dob" class="input">
-                    <select id="reg_gender" class="input">
-                        <option value="" disabled selected>Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                    </select>
-                </div>
-                <textarea id="reg_address" class="input" placeholder="Address" rows="2" style="margin-bottom: 15px; resize: none;"></textarea>
-                <button class="btn" onclick="app.submitRegistration()">Save Member Profile</button>
-                <div id="reg-msg" class="result-box mt-2" style="display:none;"></div>
-            </div>
-        </div>
-
-        <div id="billing" class="section">
-            <h2 style="color: var(--gold);"><i class="fa-solid fa-file-invoice-dollar"></i> Create Invoice</h2>
-            <div class="card" style="max-width: 600px; margin: 0 auto;">
-                <input type="text" id="inv_id" class="input" placeholder="Member ID (e.g. RB#2626)" style="margin-bottom: 15px;">
-                <select id="inv_package" class="input" style="margin-bottom: 15px;" onchange="app.calcTotal()">
-                    <option value="0" disabled selected>Select Membership Package</option>
-                    <option value="1500">1 Month - ₹1,500</option>
-                    <option value="4000">3 Months - ₹4,000</option>
-                    <option value="7500">6 Months - ₹7,500</option>
-                    <option value="12000">1 Year - ₹12,000</option>
-                </select>
-                <input type="number" id="inv_discount" class="input" placeholder="Discount (₹) - Default: 0" style="margin-bottom: 15px;" onkeyup="app.calcTotal()">
-                
-                <div style="background: #111; border: 1px solid var(--bronze); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span>Subtotal:</span> <span id="lbl_sub">₹0</span></div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: var(--gold);"><span>Discount:</span> <span id="lbl_disc">- ₹0</span></div>
-                    <hr style="border-color: #333;">
-                    <div style="display: flex; justify-content: space-between; font-size: 20px; font-weight: bold; color: var(--success);"><span>Grand Total:</span> <span id="lbl_total">₹0</span></div>
-                </div>
-                
-                <button class="btn" style="background: var(--success);" onclick="app.generateInvoice()">Generate & Print Receipt</button>
-                <div id="inv-msg" class="result-box mt-2" style="display:none;"></div>
-            </div>
-        </div>
-
-        <div id="ai" class="section">
-            <h2 style="color: var(--gold);"><i class="fa-solid fa-brain"></i> AI Engine</h2>
+        <!-- 2. CALCULATORS -->
+        <div id="calculators" class="section">
+            <h2 style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 20px;">Administrative Pro Calculators</h2>
             <div class="card">
-                <select id="agent_type" class="input" style="margin-bottom: 15px;">
-                    <option value="workout">🏋️ Workout Plan</option>
-                    <option value="diet">🥗 Diet Chart</option>
-                    <option value="business">📈 Marketing & Business</option>
-                </select>
-                <textarea id="prompt" class="input" rows="3" placeholder="Command AI..."></textarea>
-                <button class="btn" style="margin-top: 15px;" onclick="app.askAI()">Execute Command</button>
-                <div class="result-box mt-2" id="ai-response" style="text-align: left; white-space: pre-line;"></div>
+                <h3 style="color: var(--info); margin-bottom: 15px;">Advanced BMI Calculator</h3>
+                <input type="number" id="bmi_w" class="input" placeholder="Weight (kg)">
+                <input type="number" id="bmi_h" class="input" placeholder="Height (cm)">
+                <button class="btn-master" onclick="calcBMI()">Calculate BMI</button>
+                <div id="bmi_res" style="margin-top: 15px; font-weight: bold; color: var(--yellow);"></div>
             </div>
         </div>
 
-        <div id="vault" class="section">
-            <h2 style="color: var(--danger);"><i class="fa-solid fa-user-secret"></i> Ghost Vault</h2>
-            <div class="card" style="border-color: var(--danger);">
-                <input type="password" id="pin" class="input" placeholder="Admin PIN">
-                <button class="btn" style="background: var(--danger); color: white; margin-top: 15px;" onclick="app.unlockVault()">Unlock Vault</button>
-                <div class="result-box mt-2" id="vault-msg"></div>
+        <!-- 3. REGISTRATION -->
+        <div id="registration" class="section">
+            <h2 style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 20px;">Enlist New Warrior</h2>
+            <div class="card">
+                <input type="text" id="reg_name" class="input" placeholder="Full Name *">
+                <input type="tel" id="reg_phone" class="input" placeholder="Mobile Number *">
+                <input type="date" id="reg_dob" class="input">
+                <button class="btn-master" onclick="submitRegWithWhatsApp()">Register & Send WhatsApp Link</button>
+                <div id="reg-msg" style="margin-top: 15px; font-weight: bold;"></div>
+            </div>
+        </div>
+
+        <!-- 4. CLOUD DATABASE (RESTORED FUNCTIONALITY) -->
+        <div id="directory" class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-family: 'Cinzel', serif; color: var(--gold);">Cloud Database</h2>
+                <button class="btn-master" style="width:auto; padding: 10px 20px;" onclick="fetchDirectory()">Sync Data</button>
+            </div>
+            <div class="card" style="padding: 0; overflow-x: auto;">
+                <input type="text" id="search-member" class="input" placeholder="🔍 Search Database..." onkeyup="filterDirectory()" style="margin: 20px; width: 90%;">
+                <table>
+                    <thead>
+                        <tr><th>Warrior ID</th><th>Name & Phone</th><th>Join Date</th></tr>
+                    </thead>
+                    <tbody id="directory-body">
+                        <tr><td colspan="3" style="text-align: center; color: var(--gold);">Click Sync Data to fetch...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 5. SMART BILLING (RESTORED FUNCTIONALITY) -->
+        <div id="billing" class="section">
+            <h2 style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 20px;">Smart Billing Gateway</h2>
+            <div class="card">
+                <input type="text" id="inv_id" class="input" placeholder="Warrior ID (e.g., RBF26...)">
+                <input type="number" id="inv_pkg" class="input" placeholder="Package Amount (₹)">
+                <input type="number" id="inv_discount" class="input" placeholder="Discount Amount (₹)">
+                <button class="btn-master" onclick="generateInvoice()">Generate Secure Invoice</button>
+                <div id="inv-msg" style="margin-top: 15px; font-weight: bold;"></div>
+            </div>
+        </div>
+
+        <!-- 6. OMNI AI HUB (RESTORED FUNCTIONALITY) -->
+        <div id="ai-hub" class="section">
+            <h2 style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 20px;">Omni AI Core</h2>
+            <div class="card">
+                <div id="ai-response" style="background: #000; border: 1px solid #333; border-radius: 8px; padding: 20px; color: var(--info); font-family: monospace; min-height: 150px; margin-bottom: 15px; white-space: pre-wrap;">[SYSTEM] AI Core Ready. Waiting for prompt...</div>
+                <input type="text" id="ai_prompt" class="input" placeholder="Enter command...">
+                <button class="btn-master" onclick="askAI()">Engage AI</button>
             </div>
         </div>
 
     </div>
-    
-    <script src="{{ url_for('static', filename='js/app_logic.js') }}"></script>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        window.addEventListener('load', () => { setTimeout(() => { document.getElementById('master-loader').style.display = 'none'; }, 1000); });
+        
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('mobile-open'); }
+        
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            if(btn) btn.classList.add('active');
+            if(window.innerWidth <= 768) toggleSidebar();
+            if(tabId === 'directory') fetchDirectory();
+        }
+
+        // Calculators
+        function calcBMI() {
+            const w = parseFloat(document.getElementById('bmi_w').value);
+            const h = parseFloat(document.getElementById('bmi_h').value) / 100;
+            if(w && h) document.getElementById('bmi_res').innerText = `BMI: ${(w/(h*h)).toFixed(1)}`;
+        }
+
+        // Registration
+        async function submitRegWithWhatsApp() {
+            const name = document.getElementById('reg_name').value;
+            const phone = document.getElementById('reg_phone').value;
+            const dob = document.getElementById('reg_dob').value;
+            const msg = document.getElementById('reg-msg');
+            
+            if(!name || !phone) { msg.style.color = "var(--danger)"; msg.innerText = "Name and Phone required!"; return; }
+            msg.style.color = "var(--gold)"; msg.innerText = "Syncing...";
+
+            try {
+                const res = await fetch(window.location.origin + '/api/registration_sync', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: name, phone: phone, dob: dob })
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    msg.style.color = "var(--success)";
+                    msg.innerHTML = `✅ Enlisted! <a href="https://chat.whatsapp.com/YOUR_GROUP_LINK" target="_blank" style="color:var(--info);">Click to Join WhatsApp Group</a>`;
+                } else { msg.style.color = "var(--danger)"; msg.innerText = data.message; }
+            } catch(e) { msg.innerText = "Network Error!"; }
+        }
+
+        // Cloud Database
+        async function fetchDirectory() {
+            const tbody = document.getElementById('directory-body');
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--gold);">Fetching Data...</td></tr>`;
+            try {
+                const res = await fetch(window.location.origin + '/api/get_all_members');
+                const data = await res.json();
+                if (data.status === 'success' && data.members) {
+                    tbody.innerHTML = data.members.map(m => `
+                        <tr class="dir-row">
+                            <td style="color:var(--gold);">${m.member_id}</td>
+                            <td>${m.name} <br> <span style="font-size:10px;">${m.phone}</span></td>
+                            <td>${m.joining_date}</td>
+                        </tr>`).join('');
+                } else { tbody.innerHTML = `<tr><td colspan="3" style="color:red;">Error fetching data.</td></tr>`; }
+            } catch (e) { tbody.innerHTML = `<tr><td colspan="3" style="color:red;">Connection Error.</td></tr>`; }
+        }
+
+        function filterDirectory() {
+            const term = document.getElementById('search-member').value.toLowerCase();
+            document.querySelectorAll('.dir-row').forEach(row => { row.style.display = row.innerText.toLowerCase().includes(term) ? '' : 'none'; });
+        }
+
+        // Smart Billing
+        async function generateInvoice() {
+            const memberId = document.getElementById('inv_id').value;
+            const pkg = parseFloat(document.getElementById('inv_pkg').value) || 0;
+            const disc = parseFloat(document.getElementById('inv_discount').value) || 0;
+            const msg = document.getElementById('inv-msg');
+            
+            if(!memberId || pkg === 0) { msg.style.color = 'var(--danger)'; msg.innerText = 'Fill required details.'; return; }
+            msg.style.color = 'var(--gold)'; msg.innerText = 'Generating PDF...';
+            
+            try {
+                const res = await fetch(window.location.origin + '/api/generate_invoice', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({member_id: memberId, package: pkg, discount: disc})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    msg.innerHTML = `<span style="color:var(--success)">✅ Success!</span> <a href="${data.pdf_url}" target="_blank" style="color:var(--info);">Download Invoice</a>`;
+                } else { msg.style.color = 'var(--danger)'; msg.innerText = data.message; }
+            } catch(err) { msg.style.color = 'var(--danger)'; msg.innerText = 'Network Error.'; }
+        }
+
+        // AI Core
+        async function askAI() {
+            const prompt = document.getElementById('ai_prompt').value;
+            const resBox = document.getElementById('ai-response');
+            if(!prompt) return;
+            
+            resBox.innerHTML += `\n> User: ${prompt}\n> [AI PROCESSING...]`;
+            document.getElementById('ai_prompt').value = '';
+            
+            try {
+                const res = await fetch(window.location.origin + '/api/ai_master', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ prompt: prompt })
+                });
+                const data = await res.json();
+                resBox.innerHTML = resBox.innerHTML.replace('> [AI PROCESSING...]', `> ${data.response}`);
+            } catch(e) { resBox.innerHTML = resBox.innerHTML.replace('> [AI PROCESSING...]', '> [CONNECTION LOST]'); }
+        }
+    </script>
 </body>
 </html>
