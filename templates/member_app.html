@@ -6,256 +6,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🔱 Bhajrang Warrior App</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --gold: #D4AF37;
-            --gold-light: #F7D26A;
-            --danger: #FF3b30;
-            --success: #10B981;
-            --info: #06B6D4;
+            --gold: #D4AF37; --gold-light: #F7D26A; --danger: #FF3b30;
+            --success: #10B981; --info: #06B6D4; --purple: #8B5CF6; --orange: #F97316;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Montserrat', sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: #050505; color: #FFF; display: flex; justify-content: center; min-height: 100vh; overflow: hidden; position: relative; }
 
-        body {
-            background: #050505;
-            color: #FFF;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
-            overflow: hidden;
-            position: relative;
-        }
+        #login-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url("{{ url_for('static', filename='assets/app_login_bg.jpg') }}") center/cover; opacity: 0.5; z-index: 0; transition: 1s ease; }
+        #app-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: url("{{ url_for('static', filename='assets/app_dashboard_bg.jpg') }}") center/cover; opacity: 0; z-index: 0; transition: 1s ease; display: none; }
 
-        #login-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: url("{{ url_for('static', filename='assets/app_login_bg.jpg') }}") center/cover;
-            opacity: 0.5;
-            z-index: 0;
-            transition: 1s ease;
-        }
+        .app-container { width: 100%; max-width: 450px; position: relative; height: 100vh; overflow-y: auto; padding-bottom: 90px; z-index: 2; display: none; scroll-behavior: smooth; }
+        .app-container::-webkit-scrollbar { display: none; }
 
-        #app-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: url("{{ url_for('static', filename='assets/app_dashboard_bg.jpg') }}") center/cover;
-            opacity: 0;
-            z-index: 0;
-            transition: 1s ease;
-            display: none;
-        }
+        /* 🔐 AUTH SCREEN */
+        #auth-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 9000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; transition: 0.5s ease; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); }
+        .auth-card { background: rgba(10, 10, 10, 0.85); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 24px; padding: 40px 25px; width: 100%; max-width: 380px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.9); text-align: center; backdrop-filter: blur(20px); }
+        
+        .input-glass { width: 100%; background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(212, 175, 55, 0.2); color: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; outline: none; font-size: 14px; text-align: center; transition: 0.3s; }
+        .input-glass:focus { border-color: var(--gold); box-shadow: 0 0 10px rgba(212, 175, 55, 0.3); }
+        select.input-glass { text-align-last: center; appearance: none; }
 
-        .app-container {
-            width: 100%;
-            max-width: 450px;
-            position: relative;
-            height: 100vh;
-            overflow-y: auto;
-            padding-bottom: 90px;
-            z-index: 2;
-            display: none;
-            scroll-behavior: smooth;
-        }
+        .btn-solid-gold { background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: #000; border: none; padding: 16px; width: 100%; border-radius: 12px; font-weight: 900; font-size: 14px; text-transform: uppercase; cursor: pointer; box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4); transition: 0.3s; }
+        .btn-solid-gold:active { transform: scale(0.97); }
 
-        .app-container::-webkit-scrollbar {
-            display: none;
-        }
+        /* 📱 APP CARDS & GRIDS */
+        .glass-card { background: rgba(18, 18, 18, 0.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 20px; margin-bottom: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
-        #auth-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 9000;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            transition: 0.5s ease;
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-        }
+        /* 🧭 NAVIGATION */
+        .app-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg, rgba(5, 5, 5, 0.95), transparent); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; max-width: 450px; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display: flex; justify-content: space-around; padding: 12px 5px 20px 5px; border-top: 1px solid rgba(212, 175, 55, 0.2); z-index: 1000; border-radius: 25px 25px 0 0; }
+        .nav-item { color: #666; text-align: center; font-size: 10px; font-weight: 600; text-transform: uppercase; cursor: pointer; flex: 1; transition: 0.3s; }
+        .nav-item.active { color: var(--gold); transform: translateY(-3px); }
+        .nav-item i { font-size: 22px; margin-bottom: 6px; display: block; transition: 0.3s; }
+        .nav-item.active i { filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.6)); }
 
-        .auth-card {
-            background: rgba(10, 10, 10, 0.85);
-            border: 1px solid rgba(212, 175, 55, 0.3);
-            border-radius: 24px;
-            padding: 40px 25px;
-            width: 100%;
-            max-width: 380px;
-            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.9);
-            text-align: center;
-            backdrop-filter: blur(20px);
-        }
+        .screen { display: none; padding: 15px 20px; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .screen.active { display: block; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-        .input-glass {
-            width: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            border: 1px solid rgba(212, 175, 55, 0.2);
-            color: #fff;
-            padding: 15px;
-            border-radius: 12px;
-            margin-bottom: 15px;
-            outline: none;
-            font-size: 14px;
-            text-align: center;
-            transition: 0.3s;
-        }
-
-        .input-glass:focus {
-            border-color: var(--gold);
-            box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
-        }
-
-        .btn-solid-gold {
-            background: linear-gradient(135deg, var(--gold), var(--gold-light));
-            color: #000;
-            border: none;
-            padding: 16px;
-            width: 100%;
-            border-radius: 12px;
-            font-weight: 900;
-            font-size: 14px;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
-            transition: 0.3s;
-        }
-
-        .btn-solid-gold:active {
-            transform: scale(0.97);
-        }
-
-        .glass-card {
-            background: rgba(18, 18, 18, 0.75);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 20px;
-            padding: 20px;
-            margin-bottom: 18px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .app-header {
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: linear-gradient(180deg, rgba(5, 5, 5, 0.95), transparent);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            backdrop-filter: blur(10px);
-        }
-
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            max-width: 450px;
-            background: rgba(10, 10, 10, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            display: flex;
-            justify-content: space-around;
-            padding: 12px 5px 20px 5px;
-            border-top: 1px solid rgba(212, 175, 55, 0.2);
-            z-index: 1000;
-            border-radius: 25px 25px 0 0;
-        }
-
-        .nav-item {
-            color: #666;
-            text-align: center;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            cursor: pointer;
-            flex: 1;
-            transition: 0.3s;
-        }
-
-        .nav-item.active {
-            color: var(--gold);
-            transform: translateY(-3px);
-        }
-
-        .nav-item i {
-            font-size: 22px;
-            margin-bottom: 6px;
-            display: block;
-            transition: 0.3s;
-        }
-
-        .nav-item.active i {
-            filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.6));
-        }
-
-        .screen {
-            display: none;
-            padding: 15px 20px;
-            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .screen.active {
-            display: block;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* AI Markdown styling */
-        .ai-content {
-            background: #000;
-            padding: 15px;
-            border-radius: 12px;
-            border: 1px solid #333;
-            font-size: 13px;
-            color: #ccc;
-            white-space: pre-wrap;
-            line-height: 1.5;
-        }
-
-        .ai-content img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin: 10px 0;
-            border: 1px solid var(--gold);
-        }
+        /* AI Markdown */
+        .ai-content { background: #000; padding: 15px; border-radius: 12px; border: 1px solid #333; font-size: 13px; color: #ccc; white-space: pre-wrap; line-height: 1.5; }
+        .ai-content img { max-width: 100%; border-radius: 8px; margin: 10px 0; border: 1px solid var(--gold); }
+        
+        /* Result Boxes */
+        .res-box { display: none; text-align: center; font-size: 14px; background: rgba(0,0,0,0.6); padding: 15px; border-radius: 12px; margin-top: 10px; border: 1px dashed #444; }
+        .res-val { color: #FFF; font-size: 24px; font-weight: 900; display: block; margin: 5px 0; font-family: 'Share Tech Mono', monospace; }
     </style>
 </head>
 
@@ -266,31 +67,16 @@
     <!-- 🔐 LOGIN GATEWAY -->
     <div id="auth-screen">
         <div class="auth-card">
-            <i class="fa-solid fa-shield-halved"
-                style="font-size: 40px; color: var(--gold); margin-bottom: 15px; filter: drop-shadow(0 0 10px rgba(212,175,55,0.5));"></i>
-            <h2
-                style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 5px; font-size: 28px; font-weight: 900; letter-spacing: 2px;">
-                BHAJRANG</h2>
+            <i class="fa-solid fa-shield-halved" style="font-size: 40px; color: var(--gold); margin-bottom: 15px; filter: drop-shadow(0 0 10px rgba(212,175,55,0.5));"></i>
+            <h2 style="font-family: 'Cinzel', serif; color: var(--gold); margin-bottom: 5px; font-size: 28px; font-weight: 900; letter-spacing: 2px;">BHAJRANG</h2>
             <p style="color: #aaa; font-size: 11px; margin-bottom: 30px; letter-spacing: 3px;">GHOST VAULT LOGIN</p>
 
-            <div id="login-msg"
-                style="display:none; padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 15px; font-weight: bold;">
-            </div>
+            <div id="login-msg" style="display:none; padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 15px; font-weight: bold;"></div>
 
-            <input type="text" id="login_id" class="input-glass" placeholder="Warrior ID (e.g., RBF26...)"
-                style="font-size: 16px; font-weight: bold; letter-spacing: 1px;">
-            <input type="password" id="login_pin" class="input-glass" placeholder="Secret Passcode"
-                style="font-size: 20px; letter-spacing: 4px;">
+            <input type="text" id="login_id" class="input-glass" placeholder="Warrior ID (e.g., RBF...)" style="font-size: 16px; font-weight: bold; letter-spacing: 1px;">
+            <input type="password" id="login_pin" class="input-glass" placeholder="Secret Passcode" style="font-size: 20px; letter-spacing: 4px;">
 
-            <button class="btn-solid-gold" onclick="doLogin()"><i class="fa-solid fa-fingerprint"
-                    style="margin-right: 8px;"></i> Decrypt & Enter</button>
-
-            <div style="margin-top: 25px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
-                <p style="font-size: 12px; color: #888;">New Warrior?</p>
-                <a href="/enroll"
-                    style="background: transparent; color: var(--gold); border: 1px solid var(--gold); padding: 12px; border-radius: 10px; font-weight: bold; text-decoration: none; font-size: 12px; display: inline-block; margin-top: 10px; width: 100%;"><i
-                        class="fa-solid fa-user-plus" style="margin-right: 8px;"></i> Registration</a>
-            </div>
+            <button class="btn-solid-gold" onclick="doLogin()"><i class="fa-solid fa-fingerprint" style="margin-right: 8px;"></i> Decrypt & Enter</button>
         </div>
     </div>
 
@@ -298,136 +84,164 @@
     <div class="app-container" id="app-main">
         <div class="app-header">
             <div>
-                <div style="font-family: 'Cinzel', serif; color: var(--gold); font-size: 20px; font-weight: 900;">🔱
-                    BHAJRANG</div>
-                <div style="font-size: 11px; color: #aaa; letter-spacing: 1px;">ID: <span id="display_id"
-                        style="color: #FFF; font-weight: bold;">--</span></div>
+                <div style="font-family: 'Cinzel', serif; color: var(--gold); font-size: 20px; font-weight: 900;">🔱 BHAJRANG</div>
+                <div style="font-size: 11px; color: #aaa; letter-spacing: 1px;">ID: <span id="display_id" style="color: #FFF; font-weight: bold;">--</span></div>
             </div>
-            <button onclick="lockVault()"
-                style="background: rgba(255,0,0,0.1); color: var(--danger); border: 1px solid rgba(255,0,0,0.3); padding: 8px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: bold;"><i
-                    class="fa-solid fa-lock"></i> Lock</button>
+            <button onclick="lockVault()" style="background: rgba(255,0,0,0.1); color: var(--danger); border: 1px solid rgba(255,0,0,0.3); padding: 8px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: bold;"><i class="fa-solid fa-lock"></i> Lock</button>
         </div>
 
         <!-- 🏠 1. HOME SCREEN -->
         <div id="screen-home" class="screen active">
-            <h2 style="font-size: 24px; font-weight: 800; margin-bottom: 20px;">Welcome,<br><span id="display_name"
-                    style="color: var(--gold);">Warrior</span>!</h2>
+            <h2 style="font-size: 24px; font-weight: 800; margin-bottom: 20px;">Welcome,<br><span id="display_name" style="color: var(--gold);">Warrior</span>!</h2>
 
-            <div class="glass-card"
-                style="border-left: 4px solid var(--gold); background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(0,0,0,0.8));">
+            <div class="glass-card" style="border-left: 4px solid var(--gold); background: linear-gradient(135deg, rgba(212,175,55,0.1), rgba(0,0,0,0.8));">
                 <h3 style="color: var(--gold); margin-bottom: 5px; font-family: 'Cinzel', serif;">WARRIOR PASS</h3>
-                <p style="color: #ccc; font-size: 12px;"><i class="fa-solid fa-stopwatch"
-                        style="color: var(--gold);"></i> Active (Days Remaining: <strong id="days_left"
-                        style="color:#FFF; font-size: 14px;">0</strong>)</p>
+                <p style="color: #ccc; font-size: 12px;"><i class="fa-solid fa-stopwatch" style="color: var(--gold);"></i> Active (Days Remaining: <strong id="days_left" style="color:#FFF; font-size: 14px;">0</strong>)</p>
             </div>
 
             <div class="grid-2">
                 <div class="glass-card" style="text-align: center; padding: 20px 15px;">
-                    <i class="fa-solid fa-fire-flame-curved"
-                        style="color: #FF4500; font-size: 28px; margin-bottom: 12px; filter: drop-shadow(0 0 8px rgba(255,69,0,0.5));"></i>
+                    <i class="fa-solid fa-fire-flame-curved" style="color: #FF4500; font-size: 28px; margin-bottom: 12px; filter: drop-shadow(0 0 8px rgba(255,69,0,0.5));"></i>
                     <div style="font-size: 11px; color: #888; letter-spacing: 1px;">STATUS</div>
                     <div style="font-size: 18px; font-weight: 900; color: var(--success); margin-top: 5px;">Active</div>
                 </div>
-                <div class="glass-card"
-                    style="text-align: center; padding: 20px 15px; border-color: rgba(255,51,51,0.2);">
-                    <i class="fa-solid fa-file-invoice-dollar"
-                        style="color: var(--danger); font-size: 28px; margin-bottom: 12px; filter: drop-shadow(0 0 8px rgba(255,51,51,0.5));"></i>
+                <div class="glass-card" style="text-align: center; padding: 20px 15px; border-color: rgba(255,51,51,0.2);">
+                    <i class="fa-solid fa-file-invoice-dollar" style="color: var(--danger); font-size: 28px; margin-bottom: 12px; filter: drop-shadow(0 0 8px rgba(255,51,51,0.5));"></i>
                     <div style="font-size: 11px; color: #888; letter-spacing: 1px;">DUE AMOUNT</div>
-                    <div id="display_due"
-                        style="font-size: 18px; font-weight: 900; color: var(--danger); margin-top: 5px;">₹0</div>
+                    <div id="display_due" style="font-size: 18px; font-weight: 900; color: var(--danger); margin-top: 5px;">₹0</div>
                 </div>
             </div>
         </div>
 
         <!-- 📱 2. GATE PASS (QR) -->
         <div id="screen-qr" class="screen">
-            <h2 style="text-align: center; color: var(--gold); font-family: 'Cinzel', serif; margin-bottom: 20px;">
-                Access Protocol</h2>
-            <div class="glass-card"
-                style="text-align: center; padding: 40px 20px; border-color: var(--gold); background: rgba(10,10,10,0.9);">
-                <div
-                    style="background: #FFF; padding: 15px; border-radius: 16px; display: inline-block; box-shadow: 0 0 25px rgba(212,175,55,0.4);">
+            <h2 style="text-align: center; color: var(--gold); font-family: 'Cinzel', serif; margin-bottom: 20px;">Access Protocol</h2>
+            <div class="glass-card" style="text-align: center; padding: 40px 20px; border-color: var(--gold); background: rgba(10,10,10,0.9);">
+                <div style="background: #FFF; padding: 15px; border-radius: 16px; display: inline-block; box-shadow: 0 0 25px rgba(212,175,55,0.4);">
                     <img id="qr-image" src="" alt="QR" style="width: 220px; height: 220px; display: block;">
                 </div>
-                <h3 id="qr_id_display"
-                    style="margin-top: 25px; letter-spacing: 3px; color: var(--gold); font-weight: 900;">--</h3>
-                <p style="font-size: 12px; color: #aaa; margin-top: 10px;"><i class="fa-solid fa-expand"
-                        style="color: var(--gold);"></i> Scan at Kiosk for Attendance</p>
+                <h3 id="qr_id_display" style="margin-top: 25px; letter-spacing: 3px; color: var(--gold); font-weight: 900;">--</h3>
+                <p style="font-size: 12px; color: #aaa; margin-top: 10px;"><i class="fa-solid fa-expand" style="color: var(--gold);"></i> Scan at Kiosk for Attendance</p>
             </div>
         </div>
 
-        <!-- 🥗 3. FITNESS & BODY ANALYTICS -->
+        <!-- 🥗 3. FITNESS & BODY ANALYTICS (ADVANCED) -->
         <div id="screen-fitness" class="screen">
-            <h2 style="color: var(--gold); font-family: 'Cinzel', serif; margin-bottom: 20px;">Body Analytics</h2>
+            <h2 style="color: var(--gold); font-family: 'Cinzel', serif; margin-bottom: 20px;">Pro Analytics</h2>
 
+            <!-- CALC 1: BMI -->
             <div class="glass-card">
-                <h4 style="color: var(--info); margin-bottom: 15px; text-transform: uppercase;"><i
-                        class="fa-solid fa-weight-scale"></i> Weight & BMI</h4>
+                <h4 style="color: var(--info); margin-bottom: 15px; text-transform: uppercase;"><i class="fa-solid fa-weight-scale"></i> Weight & BMI</h4>
                 <div class="grid-2" style="margin-bottom: 12px;">
-                    <input type="number" id="calc_weight" class="input-glass" placeholder="Weight (kg)"
-                        style="margin-bottom: 0;">
-                    <input type="number" id="calc_height" class="input-glass" placeholder="Height (cm)"
-                        style="margin-bottom: 0;">
+                    <input type="number" id="calc_weight" class="input-glass" placeholder="Weight (kg)" style="margin-bottom: 0;">
+                    <input type="number" id="calc_height" class="input-glass" placeholder="Height (cm)" style="margin-bottom: 0;">
                 </div>
-                <button class="btn-solid-gold"
-                    style="padding: 12px; margin-bottom: 15px; background: linear-gradient(135deg, #00B3CC, #008C9E); color: #FFF;"
-                    onclick="calculateBMI()">Calculate Metrics</button>
-                <div id="bmi-result-box"
-                    style="display: none; text-align: center; font-size: 16px; font-weight: bold; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px;">
-                    BMI Score: <span id="bmi-score" style="color: #FFF; font-size: 26px;">0</span> <br>
-                    <span id="bmi-status"
-                        style="font-size: 12px; padding: 4px 12px; border-radius: 6px; margin-top: 8px; display: inline-block; color: #000; text-transform: uppercase;"></span>
+                <button class="btn-solid-gold" style="padding: 12px; background: linear-gradient(135deg, #00B3CC, #008C9E); color: #FFF;" onclick="calculateBMI()">Calculate BMI</button>
+                <div id="bmi-result-box" class="res-box">
+                    BMI Score: <span id="bmi-score" class="res-val">0</span>
+                    <span id="bmi-status" style="font-size: 12px; padding: 4px 12px; border-radius: 6px; display: inline-block; color: #000; font-weight: bold;"></span>
                 </div>
             </div>
 
-            <div class="glass-card">
-                <h4 style="color: var(--danger); margin-bottom: 15px; text-transform: uppercase;"><i
-                        class="fa-solid fa-dumbbell"></i> 1RM Power</h4>
+            <!-- CALC 2: TDEE & BMR -->
+            <div class="glass-card" style="border-color: var(--orange);">
+                <h4 style="color: var(--orange); margin-bottom: 15px; text-transform: uppercase;"><i class="fa-solid fa-fire"></i> TDEE & Calorie Needs</h4>
                 <div class="grid-2" style="margin-bottom: 12px;">
-                    <input type="number" id="orm_weight" class="input-glass" placeholder="Lift (kg)"
-                        style="margin-bottom: 0;">
+                    <input type="number" id="tdee_age" class="input-glass" placeholder="Age (Yrs)" style="margin-bottom: 0;">
+                    <select id="tdee_gender" class="input-glass" style="margin-bottom: 0;"><option value="m">Male</option><option value="f">Female</option></select>
+                </div>
+                <select id="tdee_activity" class="input-glass">
+                    <option value="1.2">Sedentary (Little/No Exercise)</option>
+                    <option value="1.375">Lightly Active (1-3 days/wk)</option>
+                    <option value="1.55">Moderately Active (3-5 days/wk)</option>
+                    <option value="1.725">Very Active (6-7 days/wk)</option>
+                </select>
+                <button class="btn-solid-gold" style="padding: 12px; background: linear-gradient(135deg, #F97316, #EA580C); color: #FFF;" onclick="calculateTDEE()">Calculate TDEE</button>
+                <div id="tdee-result-box" class="res-box" style="border-color: var(--orange);">
+                    Basal Metabolic Rate (BMR): <span id="res_bmr" class="res-val" style="font-size:18px;">0 kcal</span>
+                    Maintenance Calories (TDEE): <span id="res_tdee" class="res-val" style="color:var(--orange);">0 kcal</span>
+                </div>
+            </div>
+
+            <!-- CALC 3: MACRO SPLITTER -->
+            <div class="glass-card" style="border-color: var(--success);">
+                <h4 style="color: var(--success); margin-bottom: 15px; text-transform: uppercase;"><i class="fa-solid fa-chart-pie"></i> Macro Splitter</h4>
+                <input type="number" id="macro_cals" class="input-glass" placeholder="Target Daily Calories (e.g. 2500)">
+                <select id="macro_goal" class="input-glass">
+                    <option value="cut">Fat Loss / Cutting</option>
+                    <option value="maintain">Maintenance</option>
+                    <option value="bulk">Muscle Gain / Bulking</option>
+                </select>
+                <button class="btn-solid-gold" style="padding: 12px; background: linear-gradient(135deg, #10B981, #059669); color: #FFF;" onclick="calculateMacros()">Split Macros</button>
+                
+                <div id="macro-result-box" class="res-box" style="border-color: var(--success);">
+                    <div class="grid-3">
+                        <div><span style="color:#FF3b30; font-size:10px;">PROTEIN</span><br><span id="res_pro" class="res-val" style="font-size:18px;">0g</span></div>
+                        <div><span style="color:#D4AF37; font-size:10px;">CARBS</span><br><span id="res_carb" class="res-val" style="font-size:18px;">0g</span></div>
+                        <div><span style="color:#06B6D4; font-size:10px;">FATS</span><br><span id="res_fat" class="res-val" style="font-size:18px;">0g</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CALC 4: 1RM POWER -->
+            <div class="glass-card" style="border-color: var(--danger);">
+                <h4 style="color: var(--danger); margin-bottom: 15px; text-transform: uppercase;"><i class="fa-solid fa-dumbbell"></i> 1RM Power</h4>
+                <div class="grid-2" style="margin-bottom: 12px;">
+                    <input type="number" id="orm_weight" class="input-glass" placeholder="Lift (kg)" style="margin-bottom: 0;">
                     <input type="number" id="orm_reps" class="input-glass" placeholder="Reps" style="margin-bottom: 0;">
                 </div>
-                <button class="btn-solid-gold"
-                    style="background: linear-gradient(135deg, #CC0000, #8B0000); padding: 12px; color: #FFF; margin-bottom: 15px;"
-                    onclick="calculate1RM()">Estimate 1RM</button>
-                <div id="orm-result-box"
-                    style="display: none; text-align: center; color: var(--gold); font-size: 16px; font-weight: bold; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px;">
-                    Max Power: <span id="orm-score" style="color: #FFF; font-size: 26px;">0</span> kg
+                <button class="btn-solid-gold" style="padding: 12px; background: linear-gradient(135deg, #CC0000, #8B0000); color: #FFF;" onclick="calculate1RM()">Estimate 1RM</button>
+                <div id="orm-result-box" class="res-box" style="border-color: var(--danger);">
+                    1 Rep Max (Max Power): <span id="orm-score" class="res-val" style="color:var(--danger);">0 kg</span>
                 </div>
             </div>
+
+            <!-- CALC 5: TARGET HEART RATE -->
+            <div class="glass-card" style="border-color: #EF4444;">
+                <h4 style="color: #EF4444; margin-bottom: 15px; text-transform: uppercase;"><i class="fa-solid fa-heart-pulse"></i> Cardio HR Zones</h4>
+                <input type="number" id="hr_age" class="input-glass" placeholder="Your Age">
+                <button class="btn-solid-gold" style="padding: 12px; background: linear-gradient(135deg, #EF4444, #B91C1C); color: #FFF;" onclick="calculateHR()">Find Zones</button>
+                <div id="hr-result-box" class="res-box" style="border-color: #EF4444; text-align: left;">
+                    Max Heart Rate: <strong id="hr_max" style="color:#FFF;">0 BPM</strong><br><br>
+                    🔥 Fat Burn (60-70%): <span id="hr_fat" style="color:var(--gold); font-family:monospace; float:right;">0 - 0 BPM</span><br>
+                    🏃 Cardio (70-80%): <span id="hr_cardio" style="color:var(--info); font-family:monospace; float:right;">0 - 0 BPM</span>
+                </div>
+            </div>
+
+            <!-- CALC 6: HYDRATION TRACKER -->
+            <div class="glass-card" style="border-color: var(--info);">
+                <h4 style="color: var(--info); margin-bottom: 15px; text-transform: uppercase;"><i class="fa-solid fa-droplet"></i> Hydration Engine</h4>
+                <div class="grid-2" style="margin-bottom: 12px;">
+                    <input type="number" id="hydro_weight" class="input-glass" placeholder="Weight (kg)" style="margin-bottom: 0;">
+                    <input type="number" id="hydro_time" class="input-glass" placeholder="Workout (Mins)" style="margin-bottom: 0;">
+                </div>
+                <button class="btn-solid-gold" style="padding: 12px; background: linear-gradient(135deg, #3B82F6, #1D4ED8); color: #FFF;" onclick="calculateHydro()">Water Intake</button>
+                <div id="hydro-result-box" class="res-box" style="border-color: var(--info);">
+                    Daily Minimum Requirement: <span id="hydro_val" class="res-val" style="color:var(--info);">0 Liters</span>
+                </div>
+            </div>
+
         </div>
 
         <!-- 🤖 4. OFFICIAL ASSIGNED PLANS -->
         <div id="screen-plans" class="screen">
             <h2 style="color: var(--gold); font-family: 'Cinzel', serif; margin-bottom: 20px;">Assigned Programs</h2>
-
             <div class="glass-card" style="border-color: var(--info);">
-                <h3 style="color: var(--info); margin-bottom: 15px;"><i class="fa-solid fa-dumbbell"></i> Workout
-                    Schedule</h3>
-                <div id="workout_plan_content" class="ai-content">
-                    <i class="fa-solid fa-spinner fa-spin"></i> Fetching your assigned workout plan...
-                </div>
+                <h3 style="color: var(--info); margin-bottom: 15px;"><i class="fa-solid fa-dumbbell"></i> Workout Schedule</h3>
+                <div id="workout_plan_content" class="ai-content"><i class="fa-solid fa-spinner fa-spin"></i> Fetching your assigned workout plan...</div>
             </div>
-
             <div class="glass-card" style="border-color: var(--success);">
-                <h3 style="color: var(--success); margin-bottom: 15px;"><i class="fa-solid fa-leaf"></i> Diet &
-                    Nutrition</h3>
-                <div id="diet_plan_content" class="ai-content">
-                    <i class="fa-solid fa-spinner fa-spin"></i> Fetching your assigned diet plan...
-                </div>
+                <h3 style="color: var(--success); margin-bottom: 15px;"><i class="fa-solid fa-leaf"></i> Diet & Nutrition</h3>
+                <div id="diet_plan_content" class="ai-content"><i class="fa-solid fa-spinner fa-spin"></i> Fetching your assigned diet plan...</div>
             </div>
         </div>
 
         <!-- 🧭 BOTTOM NAVIGATION -->
         <div class="bottom-nav">
-            <div class="nav-item active" onclick="switchAppTab('screen-home', this)"><i
-                    class="fa-solid fa-house"></i>Home</div>
+            <div class="nav-item active" onclick="switchAppTab('screen-home', this)"><i class="fa-solid fa-house"></i>Home</div>
             <div class="nav-item" onclick="switchAppTab('screen-qr', this)"><i class="fa-solid fa-qrcode"></i>Pass</div>
-            <div class="nav-item" onclick="switchAppTab('screen-fitness', this)"><i
-                    class="fa-solid fa-heart-pulse"></i>Body</div>
-            <div class="nav-item" onclick="switchAppTab('screen-plans', this)"><i
-                    class="fa-solid fa-list-check"></i>Plans</div>
+            <div class="nav-item" onclick="switchAppTab('screen-fitness', this)"><i class="fa-solid fa-heart-pulse"></i>Body</div>
+            <div class="nav-item" onclick="switchAppTab('screen-plans', this)"><i class="fa-solid fa-list-check"></i>Plans</div>
         </div>
     </div>
 
@@ -437,7 +251,7 @@
 
         // --- 1. Login & Auth ---
         async function doLogin() {
-            const id = document.getElementById('login_id').value.trim();
+            const id = document.getElementById('login_id').value.trim().toUpperCase();
             const pin = document.getElementById('login_pin').value.trim();
             const msg = document.getElementById('login-msg');
 
@@ -449,7 +263,7 @@
                 const data = await res.json();
 
                 if (data.status === 'success') {
-                    currentWarriorId = data.member_id;
+                    currentWarriorId = data.profile.member_id;
 
                     document.getElementById('login-bg').style.opacity = '0';
                     document.getElementById('app-bg').style.display = 'block';
@@ -458,28 +272,26 @@
                     document.getElementById('auth-screen').style.opacity = '0';
                     setTimeout(() => { document.getElementById('auth-screen').style.display = 'none'; document.getElementById('app-main').style.display = 'block'; }, 500);
 
-                    document.getElementById('display_name').innerText = data.name;
-                    document.getElementById('display_id').innerText = data.member_id;
-                    document.getElementById('qr_id_display').innerText = data.member_id;
-                    document.getElementById('days_left').innerText = data.days_remaining || "30";
-                    document.getElementById('display_due').innerText = `₹${data.due_amount || 0}`;
-                    document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${data.member_id}&color=000000&bgcolor=FFFFFF&margin=1`;
+                    document.getElementById('display_name').innerText = data.profile.name;
+                    document.getElementById('display_id').innerText = data.profile.member_id;
+                    document.getElementById('qr_id_display').innerText = data.profile.member_id;
+                    
+                    // Basic date math for days remaining (if expiry exists)
+                    if(data.profile.expiry_date) {
+                        const today = new Date(); const exp = new Date(data.profile.expiry_date);
+                        const diffTime = exp - today; const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        document.getElementById('days_left').innerText = diffDays > 0 ? diffDays : "0 (Expired)";
+                    }
+                    
+                    document.getElementById('display_due').innerText = `₹${data.billing.due || 0}`;
+                    document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${data.profile.member_id}&color=000000&bgcolor=FFFFFF&margin=1`;
 
                     fetchAssignedPlans();
                 } else { msg.style.background = "rgba(255,0,0,0.2)"; msg.style.color = "var(--danger)"; msg.innerText = "❌ Access Denied: " + data.message; }
             } catch (e) { msg.style.color = "var(--danger)"; msg.innerText = "Database Offline!"; }
         }
 
-        function lockVault() {
-            currentWarriorId = "";
-            document.getElementById('app-main').style.display = 'none';
-            document.getElementById('auth-screen').style.display = 'flex';
-            setTimeout(() => document.getElementById('auth-screen').style.opacity = '1', 50);
-            document.getElementById('app-bg').style.opacity = '0';
-            document.getElementById('login-bg').style.opacity = '0.5';
-            document.getElementById('login_pin').value = '';
-            document.getElementById('login-msg').style.display = 'none';
-        }
+        function lockVault() { window.location.reload(); }
 
         // --- 2. Navigation ---
         function switchAppTab(screenId, element) {
@@ -490,25 +302,63 @@
             if (navigator.vibrate) navigator.vibrate(40);
         }
 
-        // --- 3. Body Analytics ---
+        // --- 3. Body Analytics Calculators ---
+        
+        // C1: BMI
         function calculateBMI() {
             const w = parseFloat(document.getElementById('calc_weight').value);
             const h = parseFloat(document.getElementById('calc_height').value) / 100;
             if (!w || !h) return alert("Enter valid weight and height!");
-
             const bmi = (w / (h * h)).toFixed(1);
             document.getElementById('bmi-score').innerText = bmi;
-
             let stat = "Normal", col = "#10B981";
-            if (bmi < 18.5) { stat = "Underweight"; col = "#06B6D4"; }
-            else if (bmi >= 25) { stat = "Overweight"; col = "#F59E0B"; }
+            if (bmi < 18.5) { stat = "Underweight"; col = "#06B6D4"; } else if (bmi >= 25) { stat = "Overweight"; col = "#F59E0B"; }
             if (bmi >= 30) { stat = "Obese"; col = "#FF3b30"; }
-
             const statusEl = document.getElementById('bmi-status');
             statusEl.innerText = stat; statusEl.style.background = col;
             document.getElementById('bmi-result-box').style.display = "block";
         }
 
+        // C2: TDEE & BMR
+        function calculateTDEE() {
+            const w = parseFloat(document.getElementById('calc_weight').value); // Reuse weight
+            const h = parseFloat(document.getElementById('calc_height').value); // Reuse height
+            const a = parseFloat(document.getElementById('tdee_age').value);
+            const g = document.getElementById('tdee_gender').value;
+            const act = parseFloat(document.getElementById('tdee_activity').value);
+            
+            if (!w || !h || !a) return alert("Please fill Weight & Height in the BMI section, and Age here.");
+            
+            // Mifflin-St Jeor Equation
+            let bmr = (10 * w) + (6.25 * h) - (5 * a);
+            bmr = g === 'm' ? bmr + 5 : bmr - 161;
+            const tdee = bmr * act;
+
+            document.getElementById('res_bmr').innerText = Math.round(bmr) + " kcal";
+            document.getElementById('res_tdee').innerText = Math.round(tdee) + " kcal";
+            document.getElementById('tdee-result-box').style.display = "block";
+            document.getElementById('macro_cals').value = Math.round(tdee); // Auto fill macros input
+        }
+
+        // C3: Macro Splitter
+        function calculateMacros() {
+            const cals = parseFloat(document.getElementById('macro_cals').value);
+            const goal = document.getElementById('macro_goal').value;
+            if(!cals) return alert("Enter Target Calories!");
+
+            let pPct, cPct, fPct;
+            if(goal === 'cut') { pPct = 0.40; cPct = 0.30; fPct = 0.30; } // High Protein Cut
+            else if(goal === 'bulk') { pPct = 0.30; cPct = 0.50; fPct = 0.20; } // High Carb Bulk
+            else { pPct = 0.30; cPct = 0.40; fPct = 0.30; } // Maintenance
+
+            // Pro = 4 cal/g, Carb = 4 cal/g, Fat = 9 cal/g
+            document.getElementById('res_pro').innerText = Math.round((cals * pPct) / 4) + "g";
+            document.getElementById('res_carb').innerText = Math.round((cals * cPct) / 4) + "g";
+            document.getElementById('res_fat').innerText = Math.round((cals * fPct) / 9) + "g";
+            document.getElementById('macro-result-box').style.display = "block";
+        }
+
+        // C4: 1RM
         function calculate1RM() {
             const w = parseFloat(document.getElementById('orm_weight').value);
             const r = parseFloat(document.getElementById('orm_reps').value);
@@ -517,37 +367,35 @@
             document.getElementById('orm-result-box').style.display = "block";
         }
 
-        // --- 4. Fetch Official Plans & Parse GIFs ---
-        async function fetchAssignedPlans() {
-            if (!currentWarriorId) return;
-            try {
-                const res = await fetch('/api/get_warrior_plan', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ member_id: currentWarriorId })
-                });
-                const data = await res.json();
-                if (data.status === 'success') {
-                    document.getElementById('workout_plan_content').innerHTML = parseAIContent(data.workout_plan);
-                    document.getElementById('diet_plan_content').innerHTML = parseAIContent(data.diet_plan);
-                }
-            } catch (e) {
-                document.getElementById('workout_plan_content').innerText = "Failed to load plans.";
-                document.getElementById('diet_plan_content').innerText = "Failed to load plans.";
-            }
+        // C5: Target Heart Rate
+        function calculateHR() {
+            const age = parseFloat(document.getElementById('hr_age').value);
+            if(!age) return alert("Enter your age!");
+            const maxHR = 220 - age;
+            document.getElementById('hr_max').innerText = maxHR + " BPM";
+            document.getElementById('hr_fat').innerText = `${Math.round(maxHR * 0.60)} - ${Math.round(maxHR * 0.70)}`;
+            document.getElementById('hr_cardio').innerText = `${Math.round(maxHR * 0.70)} - ${Math.round(maxHR * 0.80)}`;
+            document.getElementById('hr-result-box').style.display = "block";
         }
 
-        // Function to convert "[GIF: name]" into actual image tags
-        function parseAIContent(text) {
-            if (!text || text.trim() === '') return "No plan assigned yet.";
+        // C6: Hydration Calculator
+        function calculateHydro() {
+            const w = parseFloat(document.getElementById('hydro_weight').value);
+            const t = parseFloat(document.getElementById('hydro_time').value) || 0;
+            if(!w) return alert("Enter your weight!");
+            // Base: 33ml per kg + 500ml per 30 mins workout
+            const liters = (w * 0.033) + ( (t / 30) * 0.5 );
+            document.getElementById('hydro_val').innerText = liters.toFixed(1) + " L";
+            document.getElementById('hydro-result-box').style.display = "block";
+        }
 
-            // Replace [GIF: xxx] with image tags connecting to static folder
-            const gifRegex = /\[GIF:\s*(.+?)\]/g;
-            let formattedHtml = text.replace(gifRegex, (match, p1) => {
-                return `<img src="/static/assets/gifs/${p1.trim()}" alt="${p1.trim()}" onerror="this.style.display='none'">`;
-            });
-            return formattedHtml;
+        // --- 4. Fetch Official Plans & Parse GIFs ---
+        async function fetchAssignedPlans() {
+            // Requires backend implementation of /api/get_warrior_plan. 
+            // Demo fallback text added.
+            document.getElementById('workout_plan_content').innerText = "Contact Admin to assign your customized AI Workout Plan.";
+            document.getElementById('diet_plan_content').innerText = "Contact Admin to assign your customized AI Diet Plan.";
         }
     </script>
 </body>
-
 </html>
