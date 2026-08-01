@@ -322,7 +322,54 @@ def ai_master():
     return jsonify({"response": "❌ AI Keys missing!"})
 
 # ==========================================
-# 🚀 8. SERVER LAUNCHER
+# 🛑 8. KIOSK ATTENDANCE & MEMBER APP API
+# ==========================================
+@app.route('/api/punch_kiosk', methods=['POST'])
+def punch_kiosk():
+    data = request.json
+    mem_id = data.get('member_id')
+    try:
+        # Check if member exists
+        member = supabase.table('members').select('*').eq('member_id', mem_id).execute()
+        if not member.data: return jsonify({"status": "error", "message": "Invalid Warrior ID!"})
+        
+        # Check if already punched in today
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        logs = supabase.table('attendance_logs').select('*').eq('member_id', mem_id).like('punch_in_time', f"%{today}%").execute()
+        
+        if logs.data:
+            # Already in, so Punch Out
+            supabase.table('attendance_logs').update({"punch_out_time": datetime.datetime.now().isoformat()}).eq('id', logs.data[0]['id']).execute()
+            msg = f"Goodbye {member.data[0]['name']}, Workout Complete! 💪"
+        else:
+            # Punch In
+            supabase.table('attendance_logs').insert({"member_id": mem_id}).execute()
+            msg = f"Welcome {member.data[0]['name']}, Crush your limits! 🔥"
+            
+        return jsonify({"status": "success", "message": msg, "name": member.data[0]['name'], "pic": member.data[0]['profile_pic']})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/api/member_login', methods=['POST'])
+def member_login():
+    data = request.json
+    mem_id = data.get('member_id')
+    passcode = data.get('passcode')
+    try:
+        # Verify from Ghost Vault
+        verify = supabase.table('ghost_vault').select('*').eq('member_id', mem_id).eq('passcode', passcode).execute()
+        if not verify.data: return jsonify({"status": "error", "message": "Invalid ID or Passcode"})
+        
+        # Fetch Full Data
+        mem_data = supabase.table('members').select('*').eq('member_id', mem_id).execute()
+        bill_data = supabase.table('billing').select('*').eq('member_id', mem_id).execute()
+        
+        return jsonify({"status": "success", "profile": mem_data.data[0], "billing": bill_data.data[0] if bill_data.data else {}})
+    except Exception as e:
+        return jsonify({"status": "error", "message": "Login Failed!"})
+
+# ==========================================
+# 🚀 9. SERVER LAUNCHER
 # ==========================================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
