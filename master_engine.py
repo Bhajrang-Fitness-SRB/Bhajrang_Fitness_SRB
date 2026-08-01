@@ -1,9 +1,11 @@
 import os
 import sys
 import time
+import json
 import datetime
 import requests
 import traceback
+from dateutil.relativedelta import relativedelta
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -16,7 +18,7 @@ import cloudinary
 import cloudinary.uploader
 from google import genai
 
-# 🤖 Import Groq for Dual AI Core
+# 🤖 Import Groq for Dual AI Core (Fallback)
 try:
     from groq import Groq
 except ImportError:
@@ -101,46 +103,180 @@ def universal_registration(): return render_template('registration_form.html')
 def kiosk_terminal(): return render_template('kiosk.html')
 
 # ==========================================
-# 📝 4. CORE API ROUTES
+# 🔄 4. AUTO-SYNC & MASTER TELEMETRY ENGINE
 # ==========================================
+@app.route('/api/master_sync', methods=['GET'])
+def master_sync():
+    """Real-time sync API for the Admin Dashboard (No page refresh needed)"""
+    try:
+        # 1. Fetch Pending Approvals (where original_frozen_id is null/not approved)
+        pending_res = supabase.table('pending_approvals').select('*').is_('original_frozen_id', 'null').execute()
+        
+        # 2. Revenue & Expense Calculations for P/L
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        billing_res = supabase.table('billing').select('*').execute()
+        expense_res = supabase.table('expenses').select('*').execute()
+        
+        total_revenue = sum([b.get('paid', 0) for b in billing_res.data if b.get('paid')])
+        today_revenue = sum([b.get('paid', 0) for b in billing_res.data if b.get('paid') and b.get('payment_date') == today])
+        total_expenses = sum([e.get('amount', 0) for e in expense_res.data if e.get('amount')])
+        net_profit = total_revenue - total_expenses
+
+        # 3. Total Members & Today's Attendance
+        members_res = supabase.table('members').select('member_id').execute()
+        attendance_res = supabase.table('attendance_logs').select('*').like('punch_in_time', f"%{today}%").execute()
+
+        return jsonify({
+            "status": "success",
+            "dashboard": {
+                "total_members": len(members_res.data),
+                "pending_count": len(pending_res.data),
+                "today_revenue": today_revenue,
+                "net_profit": net_profit,
+                "today_attendance": len(attendance_res.data)
+            },
+            "pending_records": pending_res.data,
+            "billing_records": billing_res.data
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+# ==========================================
+# 📝 5. ENROLLMENT & APPROVAL WORKFLOW
+# ==========================================
+@app.route('/api/submit_registration', methods=['POST'])
+def submit_registration():
+    data = request.json
+    try:
+        extra_data = {
+            "father_name": data.get('father_name'), "gender": data.get('gender'),
+            "blood_group": data.get('blood_group'), "govt_id": data.get('govt_id'),
+            "occupation": data.get('occupation'), "marital_status": data.get('marital_status'),
+            "whatsapp": data.get('whatsapp'), "city": data.get('city'),
+            "state": data.get('state'), "pin": data.get('pin'), "gym_exp": data.get('gym_exp')
+        }
+        
+        payload = {
+            "name": data.get('name'),
+            "mobile": data.get('phone'),
+            "email": data.get('email'),
+            "dob": data.get('dob') if data.get('dob') else None,
+            "address": data.get('address'),
+            "photo_base64": data.get('photo_base64'),
+            "signature_b64": data.get('signature_b64'),
+            "match_status": json.dumps(extra_data)
+        }
+        
+        supabase.table('pending_approvals').insert(payload).execute()
+        send_telegram_alert(f"⚠️ Action Required: New Enrolment from {data.get('name')} ({data.get('phone')}).", "NEW_MEMBER")
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/api/approve_member', methods=['POST'])
+def approve_member():
+    data = request.json
+    req_id = data.get('req_id')
+    package_name = f"{data.get('class_type')} - {data.get('duration')} Months"
+    
+    amount = int(data.get('amount', 0))
+    discount = int(data.get('discount', 0))
+    paid = int(data.get('paid', 0))
+    due = (amount - discount) - paid
+    duration_months = int(data.get('duration', 1))
+
+    try:
+        # Fetch Pending Record
+        pending_record = supabase.table('pending_approvals').select('*').eq('id', req_id).execute()
+        if not pending_record.data:
+            return jsonify({"status": "error", "message": "Pending record not found."})
+        
+        p_data = pending_record.data[0]
+        phone = p_data.get('mobile')
+        name = p_data.get('name')
+        
+        extra_fields = {}
+        if p_data.get('match_status'):
+            try: extra_fields = json.loads(p_data.get('match_status'))
+            except: pass
+
+        # Generate ID & Dates
+        now = datetime.datetime.now()
+        yy = now.strftime("%y")
+        mm = now.strftime("%m")
+        last_4 = phone[-4:] if phone and len(phone) >= 4 else "0000"
+        member_id = f"RBF{yy}{mm}{last_4}"
+        passcode = f"01{member_id[-2:]}"
+        
+        join_date = now.strftime("%Y-%m-%d")
+        expiry_date = (now + relativedelta(months=duration_months)).strftime("%Y-%m-%d")
+
+        # Upload Photo to Cloudinary
+        image_url = ""
+        if p_data.get('photo_base64'):
+            try:
+                upload_res = cloudinary.uploader.upload(p_data['photo_base64'], folder="bhajrang_verified")
+                image_url = upload_res.get('secure_url')
+            except: pass
+
+        # 1. Sync `members` Table
+        member_insert = {
+            "member_id": member_id, "name": name, "father_name": extra_fields.get('father_name'),
+            "dob": p_data.get('dob'), "gender": extra_fields.get('gender'),
+            "blood_group": extra_fields.get('blood_group'), "govt_id": extra_fields.get('govt_id'),
+            "occupation": extra_fields.get('occupation'), "marital_status": extra_fields.get('marital_status'),
+            "phone": phone, "whatsapp": extra_fields.get('whatsapp'), "email": p_data.get('email'),
+            "address": p_data.get('address'), "city": extra_fields.get('city'),
+            "state": extra_fields.get('state'), "pin": extra_fields.get('pin'),
+            "gym_experience_years": extra_fields.get('gym_exp'), "profile_pic": image_url,
+            "joining_date": join_date, "package": package_name, "expiry_date": expiry_date
+        }
+        supabase.table('members').insert(member_insert).execute()
+
+        # 2. Sync `ghost_vault` Table
+        supabase.table('ghost_vault').insert({
+            "name": name, "member_id": member_id, "mobile": phone,
+            "passcode": passcode, "join_date": join_date
+        }).execute()
+
+        # 3. Sync `billing` Table
+        supabase.table('billing').insert({
+            "member_id": member_id, "package_name": package_name,
+            "amount": amount, "discount": discount, "paid": paid, "due": due,
+            "payment_date": join_date, "expiry_date": expiry_date
+        }).execute()
+        
+        # 4. Mark Pending as Approved
+        supabase.table('pending_approvals').update({"original_frozen_id": member_id, "status": "APPROVED"}).eq('id', req_id).execute()
+
+        # 5. Send Automated WhatsApp Notification
+        welcome_msg = f"🎉 Welcome to Bhajrang Fitness SRB, Warrior!\n\nName: {name}\nYour Official ID: *{member_id}*\nApp Passcode: *{passcode}*\nPackage: {package_name}\n\nLogin to Warrior Portal: {STUDENT_URL}"
+        send_whatsapp_message(phone, welcome_msg)
+
+        return jsonify({"status": "success", "member_id": member_id})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+# ==========================================
+# 💰 6. EXPENSES & UTILITIES
+# ==========================================
+@app.route('/api/add_expense', methods=['POST'])
+def add_expense():
+    data = request.json
+    try:
+        supabase.table('expenses').insert({
+            "expense_name": data.get('name'),
+            "amount": int(data.get('amount', 0))
+        }).execute()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route('/api/get_all_members', methods=['GET'])
 def get_all_members():
     try:
         res = supabase.table('members').select('*').execute()
         return jsonify({"status": "success", "members": res.data})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
-
-@app.route('/api/registration_sync', methods=['POST'])
-def registration_sync():
-    data = request.json
-    phone = data.get('phone')
-    name = data.get('name')
-    face_base64 = data.get('face_image')
-    
-    image_url = ""
-    if face_base64:
-        try:
-            upload_result = cloudinary.uploader.upload(face_base64, folder="bhajrang_biometrics")
-            image_url = upload_result.get('secure_url')
-        except: pass
-            
-    try:
-        now = datetime.datetime.now()
-        yy = now.strftime("%y")
-        mm = now.strftime("%m")
-        last_4_phone = phone[-4:] if phone and len(phone) >= 4 else "0000"
-        member_id = f"RBF{yy}{mm}{last_4_phone}"
-        passcode = f"{data.get('dob', '').split('-')[1] if len(data.get('dob', '').split('-')) >= 2 else '01'}{member_id[-2:]}"
-        
-        member_data = {
-            "member_id": member_id, "name": name, "phone": phone, "dob": data.get('dob'),
-            "profile_pic": image_url, "joining_date": now.strftime("%Y-%m-%d"), "package": "Active"
-        }
-        supabase.table('members').insert(member_data).execute()
-        supabase.table('ghost_vault').insert({ "name": name, "member_id": member_id, "mobile": phone, "passcode": passcode, "join_date": now.strftime("%Y-%m-%d %H:%M:%S") }).execute()
-        
-        return jsonify({"status": "success", "message": f"Profile Secured! ID: {member_id}"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
@@ -156,6 +292,9 @@ def create_invoice():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+# ==========================================
+# 🤖 7. DUAL AI CORE (GEMINI + GROQ)
+# ==========================================
 @app.route('/api/ai_master', methods=['POST'])
 def ai_master():
     data = request.json
@@ -182,6 +321,9 @@ def ai_master():
             
     return jsonify({"response": "❌ AI Keys missing!"})
 
+# ==========================================
+# 🚀 8. SERVER LAUNCHER
+# ==========================================
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
