@@ -12,3 +12,4 @@ cloudinary==1.36.0
 gunicorn==21.2.0
 redis
 gunicorn
+python-dateutil⁠⁠
