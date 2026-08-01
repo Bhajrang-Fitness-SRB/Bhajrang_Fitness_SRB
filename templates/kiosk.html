@@ -20,11 +20,7 @@
             --dark: #050505;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             background: var(--dark);
@@ -42,18 +38,14 @@
         /* 🌌 CYBERPUNK BACKGROUND & GRID */
         .kiosk-bg {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             background: radial-gradient(circle at center, #111, #000);
             z-index: 0;
         }
 
         .grid-lines {
             position: absolute;
-            width: 100vw;
-            height: 100vh;
+            width: 100vw; height: 100vh;
             background-image: linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
             background-size: 40px 40px;
             z-index: 1;
@@ -63,351 +55,135 @@
         }
 
         @keyframes gridMove {
-            0% {
-                background-position: 0 0;
-            }
-
-            100% {
-                background-position: 0 40px;
-            }
+            0% { background-position: 0 0; }
+            100% { background-position: 0 40px; }
         }
 
         /* 🕰️ TOP HUD HEADER */
         .hud-header {
-            position: absolute;
-            top: 20px;
-            left: 40px;
-            right: 40px;
-            z-index: 10;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 2px solid rgba(212, 175, 55, 0.3);
-            padding-bottom: 10px;
+            position: absolute; top: 20px; left: 40px; right: 40px; z-index: 10;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            border-bottom: 2px solid rgba(212, 175, 55, 0.3); padding-bottom: 10px;
         }
 
         .hud-clock {
             font-family: 'Share Tech Mono', monospace;
-            font-size: 32px;
-            color: var(--cyan);
+            font-size: 32px; color: var(--cyan);
             text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
         }
 
-        .hud-status {
-            text-align: right;
-        }
-
+        .hud-status { text-align: right; }
         .hud-status span {
-            display: block;
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 12px;
-            color: var(--gold);
-            letter-spacing: 2px;
+            display: block; font-family: 'Share Tech Mono', monospace;
+            font-size: 12px; color: var(--gold); letter-spacing: 2px;
         }
 
         .container {
-            position: relative;
-            z-index: 2;
-            width: 95%;
-            max-width: 1300px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
-            height: 75vh;
-            margin-top: 50px;
+            position: relative; z-index: 2;
+            width: 95%; max-width: 1300px;
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 40px; height: 75vh; margin-top: 50px;
         }
 
         /* 📸 LEFT: CAMERA SECTION */
         .cyber-panel {
-            background: rgba(5, 5, 5, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(212, 175, 55, 0.4);
-            border-radius: 20px;
+            background: rgba(5, 5, 5, 0.7); backdrop-filter: blur(10px);
+            border: 1px solid rgba(212, 175, 55, 0.4); border-radius: 20px;
             box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(212, 175, 55, 0.05);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 30px;
-            position: relative;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 30px; position: relative;
         }
 
         /* Sci-Fi Corners */
-        .corner {
-            position: absolute;
-            width: 30px;
-            height: 30px;
-            border-color: var(--cyan);
-            border-style: solid;
-            transition: 0.3s;
-            z-index: 10;
-        }
+        .corner { position: absolute; width: 30px; height: 30px; border-color: var(--cyan); border-style: solid; transition: 0.3s; z-index: 10; }
+        .tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 20px; }
+        .tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 20px; }
+        .bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 20px; }
+        .br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 20px; }
 
-        .tl {
-            top: -2px;
-            left: -2px;
-            border-width: 3px 0 0 3px;
-            border-top-left-radius: 20px;
-        }
-
-        .tr {
-            top: -2px;
-            right: -2px;
-            border-width: 3px 3px 0 0;
-            border-top-right-radius: 20px;
-        }
-
-        .bl {
-            bottom: -2px;
-            left: -2px;
-            border-width: 0 0 3px 3px;
-            border-bottom-left-radius: 20px;
-        }
-
-        .br {
-            bottom: -2px;
-            right: -2px;
-            border-width: 0 3px 3px 0;
-            border-bottom-right-radius: 20px;
-        }
-
-        #reader {
-            width: 100%;
-            max-width: 450px;
-            border-radius: 15px;
-            overflow: hidden;
-            border: 2px solid rgba(0, 229, 255, 0.3);
-            background: #000;
-            position: relative;
-        }
+        #reader { width: 100%; max-width: 450px; border-radius: 15px; overflow: hidden; border: 2px solid rgba(0, 229, 255, 0.3); background: #000; position: relative; }
 
         /* Laser Animation */
         .scan-laser {
-            position: absolute;
-            top: 10%;
-            left: 5%;
-            width: 90%;
-            height: 3px;
-            background: var(--cyan);
-            box-shadow: 0 0 20px var(--cyan), 0 0 40px var(--cyan);
-            animation: scan 2s ease-in-out infinite alternate;
-            z-index: 10;
-            display: none;
-            border-radius: 50%;
+            position: absolute; top: 10%; left: 5%; width: 90%; height: 3px;
+            background: var(--cyan); box-shadow: 0 0 20px var(--cyan), 0 0 40px var(--cyan);
+            animation: scan 2s ease-in-out infinite alternate; z-index: 10; display: none; border-radius: 50%;
         }
 
-        @keyframes scan {
-            0% {
-                top: 10%;
-                opacity: 0.5;
-            }
-
-            50% {
-                opacity: 1;
-            }
-
-            100% {
-                top: 90%;
-                opacity: 0.5;
-            }
-        }
+        @keyframes scan { 0% { top: 10%; opacity: 0.5; } 50% { opacity: 1; } 100% { top: 90%; opacity: 0.5; } }
 
         /* Control Buttons */
-        .btn-controls {
-            display: flex;
-            gap: 15px;
-            margin-top: 30px;
-            width: 100%;
-            justify-content: center;
-        }
-
+        .btn-controls { display: flex; gap: 15px; margin-top: 30px; width: 100%; justify-content: center; }
+        
         .btn-scan {
-            background: rgba(0, 229, 255, 0.1);
-            border: 1px solid var(--cyan);
-            color: var(--cyan);
-            padding: 15px 25px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            transition: 0.3s;
-            width: 45%;
+            background: rgba(0, 229, 255, 0.1); border: 1px solid var(--cyan);
+            color: var(--cyan); padding: 15px 25px; font-size: 14px; font-weight: bold;
+            border-radius: 8px; cursor: pointer; text-transform: uppercase; letter-spacing: 2px;
+            transition: 0.3s; width: 45%;
         }
 
-        .btn-scan:hover,
-        .btn-scan.active {
-            background: var(--cyan);
-            color: #000;
-            box-shadow: 0 0 15px rgba(0, 229, 255, 0.5);
-        }
+        .btn-scan:hover, .btn-scan.active { background: var(--cyan); color: #000; box-shadow: 0 0 15px rgba(0, 229, 255, 0.5); }
+        .btn-gold-var { background: rgba(212, 175, 55, 0.1); border-color: var(--gold); color: var(--gold); }
+        .btn-gold-var:hover, .btn-gold-var.active { background: var(--gold); color: #000; box-shadow: 0 0 15px rgba(212, 175, 55, 0.5); }
 
-        .btn-gold-var {
-            background: rgba(212, 175, 55, 0.1);
-            border-color: var(--gold);
-            color: var(--gold);
-        }
-
-        .btn-gold-var:hover,
-        .btn-gold-var.active {
-            background: var(--gold);
-            color: #000;
-            box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
-        }
+        /* Manual Input for Physical Scanner (Hidden but active) */
+        .input-hidden { position: absolute; opacity: 0; top: -100px; }
 
         /* 📊 RIGHT: DISPLAY PANEL SECTION */
-        .display-panel {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-        }
+        .display-panel { display: flex; flex-direction: column; justify-content: flex-start; }
 
         .status-box {
-            background: rgba(0, 0, 0, 0.6);
-            border: 2px dashed #333;
-            border-radius: 20px;
-            padding: 30px;
-            min-height: 350px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            position: relative;
-            overflow: hidden;
+            background: rgba(0, 0, 0, 0.6); border: 2px dashed #333; border-radius: 20px;
+            padding: 30px; min-height: 350px; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; transition: all 0.4s ease;
+            position: relative; overflow: hidden;
         }
 
-        .status-icon {
-            font-size: 80px;
-            color: #333;
-            margin-bottom: 20px;
-            transition: 0.4s;
-        }
-
+        .status-icon { font-size: 80px; color: #333; margin-bottom: 20px; transition: 0.4s; }
+        
         .status-text {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 28px;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            z-index: 2;
-            text-align: center;
+            font-family: 'Share Tech Mono', monospace; font-size: 28px; color: #666;
+            text-transform: uppercase; letter-spacing: 3px; z-index: 2; text-align: center;
         }
 
         /* Dynamic Status Classes */
-        .status-granted {
-            border-color: var(--green);
-            background: rgba(0, 255, 0, 0.05);
-            box-shadow: 0 0 40px rgba(0, 255, 0, 0.15), inset 0 0 20px rgba(0, 255, 0, 0.1);
-        }
+        .status-granted { border-color: var(--green); background: rgba(0, 255, 0, 0.05); box-shadow: 0 0 40px rgba(0, 255, 0, 0.15), inset 0 0 20px rgba(0, 255, 0, 0.1); }
+        .status-granted .status-icon { color: var(--green); filter: drop-shadow(0 0 15px var(--green)); transform: scale(1.1); }
+        .status-granted .status-text { color: var(--green); text-shadow: 0 0 10px rgba(0, 255, 0, 0.5); }
 
-        .status-granted .status-icon {
-            color: var(--green);
-            filter: drop-shadow(0 0 15px var(--green));
-            transform: scale(1.1);
-        }
-
-        .status-granted .status-text {
-            color: var(--green);
-            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
-        }
-
-        .status-denied {
-            border-color: var(--red);
-            background: rgba(255, 0, 0, 0.05);
-            box-shadow: 0 0 40px rgba(255, 0, 0, 0.15), inset 0 0 20px rgba(255, 0, 0, 0.1);
-            animation: shake 0.4s;
-        }
-
-        .status-denied .status-icon {
-            color: var(--red);
-            filter: drop-shadow(0 0 15px var(--red));
-            transform: scale(1.1);
-        }
-
-        .status-denied .status-text {
-            color: var(--red);
-            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
-        }
+        .status-denied { border-color: var(--red); background: rgba(255, 0, 0, 0.05); box-shadow: 0 0 40px rgba(255, 0, 0, 0.15), inset 0 0 20px rgba(255, 0, 0, 0.1); animation: shake 0.4s; }
+        .status-denied .status-icon { color: var(--red); filter: drop-shadow(0 0 15px var(--red)); transform: scale(1.1); }
+        .status-denied .status-text { color: var(--red); text-shadow: 0 0 10px rgba(255, 0, 0, 0.5); }
 
         @keyframes shake {
-
-            0%,
-            100% {
-                transform: translateX(0);
-            }
-
-            25% {
-                transform: translateX(-15px);
-            }
-
-            75% {
-                transform: translateX(15px);
-            }
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-15px); }
+            75% { transform: translateX(15px); }
         }
 
         /* Profile Image */
         .member-pic {
-            width: 140px;
-            height: 140px;
-            border-radius: 50%;
-            border: 4px solid var(--green);
-            margin-bottom: 15px;
-            display: none;
-            object-fit: cover;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
-            z-index: 2;
+            width: 140px; height: 140px; border-radius: 50%; border: 4px solid var(--green);
+            margin-bottom: 15px; display: none; object-fit: cover; box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); z-index: 2;
         }
 
         /* Mini Logs */
         .log-container {
-            margin-top: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid #222;
-            border-radius: 12px;
-            padding: 15px;
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
+            margin-top: 20px; background: rgba(0, 0, 0, 0.5); border: 1px solid #222;
+            border-radius: 12px; padding: 15px; flex-grow: 1; display: flex; flex-direction: column;
         }
 
-        .log-title {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 14px;
-            color: var(--gold);
-            border-bottom: 1px solid #333;
-            padding-bottom: 8px;
-            margin-bottom: 10px;
-        }
-
-        .log-list {
-            list-style: none;
-            overflow-y: auto;
-            max-height: 120px;
-        }
-
-        .log-list::-webkit-scrollbar {
-            display: none;
-        }
+        .log-title { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--gold); border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 10px; }
+        .log-list { list-style: none; overflow-y: auto; max-height: 120px; }
+        .log-list::-webkit-scrollbar { display: none; }
 
         .log-item {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            padding: 8px 0;
-            border-bottom: 1px dashed #222;
-            color: #aaa;
-            font-family: 'Share Tech Mono', monospace;
-            animation: fadeIn 0.3s;
+            display: flex; justify-content: space-between; font-size: 12px; padding: 8px 0;
+            border-bottom: 1px dashed #222; color: #aaa; font-family: 'Share Tech Mono', monospace; animation: fadeIn 0.3s;
         }
 
-        .log-item span.success {
-            color: var(--green);
-        }
-
-        .log-item span.fail {
-            color: var(--red);
-        }
+        .log-item span.success { color: var(--green); }
+        .log-item span.fail { color: var(--red); }
     </style>
 </head>
 
@@ -415,14 +191,15 @@
     <div class="kiosk-bg"></div>
     <div class="grid-lines"></div>
 
+    <!-- For Physical Barcode Gun -->
+    <input type="text" id="manual_scan_input" class="input-hidden" autofocus autocomplete="off">
+
     <!-- 🕰️ TOP HUD -->
     <div class="hud-header">
         <div>
-            <h1
-                style="font-family: 'Cinzel', serif; color: var(--gold); margin: 0; font-size: 36px; letter-spacing: 3px; text-shadow: 0 0 15px rgba(212,175,55,0.4);">
+            <h1 style="font-family: 'Cinzel', serif; color: var(--gold); margin: 0; font-size: 36px; letter-spacing: 3px; text-shadow: 0 0 15px rgba(212,175,55,0.4);">
                 BHAJRANG</h1>
-            <p
-                style="font-family: 'Share Tech Mono', monospace; color: var(--cyan); font-size: 14px; letter-spacing: 5px; margin: 0;">
+            <p style="font-family: 'Share Tech Mono', monospace; color: var(--cyan); font-size: 14px; letter-spacing: 5px; margin: 0;">
                 AI SECURITY TERMINAL</p>
         </div>
         <div class="hud-status">
@@ -435,29 +212,23 @@
     <div class="container">
         <!-- 📸 LEFT: CAMERA SECTION -->
         <div class="cyber-panel">
-            <div class="corner tl"></div>
-            <div class="corner tr"></div>
-            <div class="corner bl"></div>
-            <div class="corner br"></div>
+            <div class="corner tl"></div> <div class="corner tr"></div>
+            <div class="corner bl"></div> <div class="corner br"></div>
 
-            <div
-                style="position: relative; width: 100%; display: flex; justify-content: center; align-items: center; min-height: 350px; background: #000; border-radius: 15px; border: 1px solid #222;">
+            <div style="position: relative; width: 100%; display: flex; justify-content: center; align-items: center; min-height: 350px; background: #000; border-radius: 15px; border: 1px solid #222;">
                 <!-- QR Scanner Div -->
                 <div id="reader" style="width: 100%;"></div>
 
                 <!-- Face Scanner Simulation Div -->
-                <video id="face-video" autoplay playsinline
-                    style="display: none; width: 100%; max-width: 450px; border-radius: 15px; transform: scaleX(-1); object-fit: cover;"></video>
+                <video id="face-video" autoplay playsinline style="display: none; width: 100%; max-width: 450px; border-radius: 15px; transform: scaleX(-1); object-fit: cover;"></video>
 
                 <!-- Laser Overlay -->
                 <div class="scan-laser" id="laser"></div>
             </div>
 
             <div class="btn-controls">
-                <button class="btn-scan active" id="btn-qr" onclick="startQRScanner()"><i
-                        class="fa-solid fa-qrcode"></i> Scan QR Pass</button>
-                <button class="btn-scan btn-gold-var" id="btn-face" onclick="startFaceScan()"><i
-                        class="fa-solid fa-face-viewfinder"></i> Biometric</button>
+                <button class="btn-scan active" id="btn-qr" onclick="startQRScanner()"><i class="fa-solid fa-qrcode"></i> Scan QR Pass</button>
+                <button class="btn-scan btn-gold-var" id="btn-face" onclick="startFaceScan()"><i class="fa-solid fa-face-viewfinder"></i> Biometric</button>
             </div>
         </div>
 
@@ -468,11 +239,9 @@
                 <img id="m-pic" class="member-pic" src="">
                 <div class="status-text" id="status-msg">AWAITING TARGET</div>
 
-                <div id="m-name"
-                    style="color: #FFF; font-size: 26px; font-weight: 900; margin-top: 15px; display: none; font-family: 'Cinzel', serif; letter-spacing: 1px; z-index: 2;">
+                <div id="m-name" style="color: #FFF; font-size: 26px; font-weight: 900; margin-top: 15px; display: none; font-family: 'Cinzel', serif; letter-spacing: 1px; z-index: 2;">
                     Warrior Name</div>
-                <div id="m-id"
-                    style="color: #ccc; font-size: 14px; margin-top: 5px; display: none; font-family: 'Share Tech Mono', monospace; z-index: 2;">
+                <div id="m-id" style="color: #ccc; font-size: 14px; margin-top: 5px; display: none; font-family: 'Share Tech Mono', monospace; z-index: 2;">
                     ID: RBFXXXX</div>
             </div>
 
@@ -497,7 +266,18 @@
         const mId = document.getElementById('m-id');
         const laser = document.getElementById('laser');
         const logList = document.getElementById('action-logs');
+        const physicalScannerInput = document.getElementById('manual_scan_input');
         let html5QrcodeScanner = null;
+
+        // --- Keep Physical Scanner Focused ---
+        document.addEventListener('click', () => physicalScannerInput.focus());
+        physicalScannerInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const scannedId = this.value.trim().toUpperCase();
+                this.value = ''; // clear for next scan
+                if(scannedId) processAttendance(scannedId, 'BARCODE_GUN');
+            }
+        });
 
         // --- 1. Real-Time Clock ---
         setInterval(() => {
@@ -509,8 +289,10 @@
         // --- 2. AI Voice Engine ---
         function speak(text) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Stop previous
-                const utterance = new SpeechSynthesisUtterance(text);
+                window.speechSynthesis.cancel();
+                // Remove emojis for clear speech
+                const cleanText = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '');
+                const utterance = new SpeechSynthesisUtterance(cleanText);
                 utterance.rate = 1.0; utterance.pitch = 1.0;
                 window.speechSynthesis.speak(utterance);
             }
@@ -544,18 +326,17 @@
             resetDisplay();
 
             if (!html5QrcodeScanner) {
-                // Configured for fast scanning without UI clutter
-                html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: { width: 250, height: 250 }, showTorchButtonIfSupported: false }, false);
+                html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 }, showTorchButtonIfSupported: false }, false);
                 html5QrcodeScanner.render(onScanSuccess, onScanFailure);
             }
         }
 
-        async function onScanSuccess(decodedText, decodedResult) {
+        function onScanSuccess(decodedText, decodedResult) {
             if (html5QrcodeScanner) { html5QrcodeScanner.clear(); html5QrcodeScanner = null; }
             laser.style.display = 'none';
-            processAttendance(decodedText, 'QR');
+            processAttendance(decodedText, 'QR_CAMERA');
         }
-        function onScanFailure(error) { /* Ignore background frame errors */ }
+        function onScanFailure(error) { /* Ignore */ }
 
         // --- 5. FACE SCAN ENGINE (Simulation for Frontend HUD) ---
         async function startFaceScan() {
@@ -580,54 +361,55 @@
                 icon.className = "fa-solid fa-expand status-icon";
                 icon.style.color = "var(--gold)";
 
-                // Simulate processing time
                 setTimeout(() => {
                     stream.getTracks().forEach(track => track.stop());
                     video.style.display = 'none';
                     laser.style.display = 'none';
-                    // For demo, we trigger attendance for the Admin ID. 
-                    processAttendance('RBF29255', 'FACE');
+                    // DEMO TRIGGER: Hardcoded ID for simulation purpose
+                    processAttendance('RBF2605', 'FACE'); 
                 }, 2500);
-
-            } catch (e) { alert("Camera Error: " + e); }
+            } catch (e) { alert("Camera Error: Please allow permissions."); }
         }
 
         // --- 6. ATTENDANCE PROCESSING & CLOUD API CALL ---
-        async function processAttendance(memberId, method) {
+        async function processAttendance(memberId) {
+            // Stop scanner temporarily to prevent multiple rapid scans
+            if (html5QrcodeScanner) { html5QrcodeScanner.clear(); html5QrcodeScanner = null; }
+
             statusBox.style.borderColor = "var(--cyan)";
             icon.className = "fa-solid fa-spinner fa-spin status-icon";
             icon.style.color = "var(--cyan)";
-            statusMsg.innerText = `VERIFYING VIA CLOUD...`;
+            statusMsg.innerText = `VERIFYING CLOUD...`;
 
             try {
-                const res = await fetch('/api/kiosk_scan', {
+                // Correctly connected to master_engine.py -> /api/punch_kiosk
+                const res = await fetch('/api/punch_kiosk', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ member_id: memberId, scan_type: method })
+                    body: JSON.stringify({ member_id: memberId })
                 });
                 const data = await res.json();
-
                 const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false });
 
                 if (data.status === 'success') {
                     // ✅ ACCESS GRANTED
                     statusBox.className = "status-box status-granted";
                     icon.style.display = "none";
-                    mPic.src = data.profile_pic || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+                    
+                    // Connected with backend's profile_pic
+                    mPic.src = data.pic || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
                     mPic.style.display = "block";
                     statusMsg.innerText = "ACCESS GRANTED";
 
-                    // The backend now returns names like "Rajib (CHECK-IN)"
-                    const cleanName = data.name.split(' (')[0];
-                    const action = data.name.includes('OUT') ? 'CHECK-OUT' : 'CHECK-IN';
+                    // Detect Check-In or Check-Out based on backend message
+                    const action = data.message.toLowerCase().includes('goodbye') ? 'CHECK-OUT' : 'CHECK-IN';
 
-                    mName.innerText = cleanName; mName.style.display = "block";
-                    mId.innerText = `ID: ${data.member_id} | ${action} OK`; mId.style.display = "block";
+                    mName.innerText = data.name; mName.style.display = "block";
+                    mId.innerText = `ID: ${memberId} | ${action} OK`; mId.style.display = "block";
 
                     playSound('success');
-                    speak(`Access Granted. Welcome, ${cleanName}.`);
+                    speak(data.message); // Speaks: "Welcome Rajib, Crush your limits!"
 
-                    // Add to Log
-                    addLog(`[${timeStr}] ${cleanName} (${data.member_id})`, 'success', action);
+                    addLog(`[${timeStr}] ${data.name} (${memberId})`, 'success', action);
 
                 } else {
                     // ❌ ACCESS DENIED
@@ -642,19 +424,21 @@
                     playSound('error');
                     speak("Access Denied. " + data.message);
 
-                    // Add to Log
                     addLog(`[${timeStr}] Unknown ID (${memberId})`, 'fail', 'DENIED');
                 }
             } catch (e) {
-                statusMsg.innerText = "SYSTEM ERROR";
-                speak("Warning. Cloud database offline.");
+                statusMsg.innerText = "SYSTEM OFFLINE";
+                speak("Warning. Cloud database connection lost.");
             }
 
-            // Auto reset HUD after 5 seconds
+            // Auto reset HUD after 4.5 seconds and restart camera
             setTimeout(() => {
-                if (document.getElementById('btn-qr').classList.contains('active')) startQRScanner();
-                else resetDisplay();
-            }, 5000);
+                if (document.getElementById('btn-qr').classList.contains('active')) {
+                    startQRScanner();
+                } else {
+                    resetDisplay();
+                }
+            }, 4500);
         }
 
         function resetDisplay() {
@@ -665,6 +449,7 @@
             icon.style.display = "block"; mPic.style.display = "none";
             statusMsg.innerText = "AWAITING TARGET";
             mName.style.display = "none"; mId.style.display = "none";
+            physicalScannerInput.focus();
         }
 
         function addLog(text, type, action) {
@@ -677,7 +462,10 @@
         }
 
         // Boot System
-        window.onload = startQRScanner;
+        window.onload = () => {
+            startQRScanner();
+            physicalScannerInput.focus();
+        };
     </script>
 </body>
 
