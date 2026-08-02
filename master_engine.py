@@ -1,4 +1,3 @@
-# master_engine.py
 from flask import Flask, render_template, jsonify, request, send_file
 import os
 from dotenv import load_dotenv
