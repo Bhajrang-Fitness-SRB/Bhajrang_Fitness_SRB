@@ -1,1 +1,0 @@
-git checkout -b add-ci-workflow mkdir -p .github/workflows cat > .github/workflows/build_and_release.yml <<'YAML' (paste the YAML block from my earlier message here) YAML git add .github/workflows/build_and_release.yml git commit -m "ci: add build & release workflow" git push origin add-ci-workflow
