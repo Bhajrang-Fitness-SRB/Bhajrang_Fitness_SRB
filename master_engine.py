@@ -1,6 +1,6 @@
 from flask import Flask, render_template, jsonify, request, send_file
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from supabase import create_client
 import pybase64
 import qrcode
@@ -13,24 +13,34 @@ import json
 import random
 import string
 
-# Load environment variables
-load_dotenv('master_vault.env')
+# Load environment variables (search for master_vault.env from project root)
+dotenv_path = find_dotenv('master_vault.env') or find_dotenv()
+if dotenv_path:
+    load_dotenv(dotenv_path)
 
 # Initialize Flask app
 app = Flask(__name__)
 
-# Configuration
+# Configuration with safe defaults so route decorators never receive None
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-ADMIN_PORTAL_URL = os.getenv("ADMIN_PORTAL_URL")
-DESK_PORTAL_URL = os.getenv("DESK_PORTAL_URL")
-STAFF_PORTAL_URL = os.getenv("STAFF_PORTAL_URL")
-STUDENT_PORTAL_URL = os.getenv("STUDENT_PORTAL_URL")
+ADMIN_PORTAL_URL = os.getenv("ADMIN_PORTAL_URL") or "/villain"
+DESK_PORTAL_URL = os.getenv("DESK_PORTAL_URL") or "/administration"
+STAFF_PORTAL_URL = os.getenv("STAFF_PORTAL_URL") or "/commander"
+STUDENT_PORTAL_URL = os.getenv("STUDENT_PORTAL_URL") or "/warrior"
 
-# Initialize Supabase client
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize Supabase client only when configured
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print("Warning: Supabase client init failed:", e)
+        supabase = None
+else:
+    print("Supabase not configured; running in offline/demo mode")
 
-# Sample data for demonstration
+# Sample data for demonstration / fallback
 SAMPLE_MEMBERS = [
     {"id": "RBF26050001", "name": "John Doe", "package": "Gold", "status": "Active", "phone": "9876543210"},
     {"id": "RBF26050002", "name": "Jane Smith", "package": "Platinum", "status": "Active", "phone": "9876543211"},
@@ -71,12 +81,20 @@ def register():
 
 @app.route('/api/telemetry')
 def telemetry():
-    # In real implementation, fetch from Supabase
-    total_members = len(SAMPLE_MEMBERS)
+    # In real implementation, fetch from Supabase when available
+    if supabase:
+        try:
+            total_members = supabase.table('members').select('id').execute().data
+            total_members = len(total_members or [])
+        except Exception:
+            total_members = len(SAMPLE_MEMBERS)
+    else:
+        total_members = len(SAMPLE_MEMBERS)
+
     today_revenue = SAMPLE_FINANCE["total_revenue"]
     active_attendance = 12  # Mock data
     pending_requests = len(SAMPLE_PENDING)
-    
+
     return jsonify({
         "total_members": total_members,
         "today_revenue": today_revenue,
@@ -86,17 +104,44 @@ def telemetry():
 
 @app.route('/api/members')
 def members():
-    # In real implementation, fetch from Supabase
+    # Prefer live data when Supabase is configured, otherwise return sample data
+    if supabase:
+        try:
+            resp = supabase.table('members').select('*').execute()
+            return jsonify(resp.data or [])
+        except Exception as e:
+            print('Supabase members read failed:', e)
+            return jsonify(SAMPLE_MEMBERS)
     return jsonify(SAMPLE_MEMBERS)
 
 @app.route('/api/pending')
 def pending():
-    # In real implementation, fetch from Supabase
+    if supabase:
+        try:
+            resp = supabase.table('pending_approvals').select('*').execute()
+            return jsonify(resp.data or [])
+        except Exception as e:
+            print('Supabase pending read failed:', e)
+            return jsonify(SAMPLE_PENDING)
     return jsonify(SAMPLE_PENDING)
 
 @app.route('/api/finance')
 def finance():
-    # In real implementation, calculate from Supabase
+    if supabase:
+        try:
+            # Example aggregate — adapt to your schema
+            resp = supabase.table('billing').select('amount').execute()
+            amounts = [r.get('amount', 0) for r in (resp.data or [])]
+            total_revenue = sum(amounts)
+            # Simplified example; replace with your real calculations
+            return jsonify({
+                'total_revenue': total_revenue,
+                'total_expenses': SAMPLE_FINANCE['total_expenses'],
+                'net_profit': total_revenue - SAMPLE_FINANCE['total_expenses']
+            })
+        except Exception as e:
+            print('Supabase finance read failed:', e)
+            return jsonify(SAMPLE_FINANCE)
     return jsonify(SAMPLE_FINANCE)
 
 @app.route('/api/generate_qr/<member_id>')
@@ -105,27 +150,27 @@ def generate_qr(member_id):
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
     qr.add_data(member_id)
     qr.make(fit=True)
-    
+
     img = qr.make_image(fill='black', back_color='white')
-    
+
     # Save to bytes
     img_buffer = io.BytesIO()
     img.save(img_buffer, format='PNG')
     img_buffer.seek(0)
-    
+
     # Encode to base64
     img_str = pybase64.b64encode(img_buffer.getvalue()).decode()
-    
+
     return jsonify({"qr_code": img_str})
 
 @app.route('/api/approve_member', methods=['POST'])
 def approve_member():
     data = request.json
     member_id = data.get('member_id')
-    
+
     # In real implementation, move from pending to members table
     # and create ghost vault credentials
-    
+
     return jsonify({"status": "approved", "member_id": member_id})
 
 @app.route('/api/generate_id')
@@ -142,7 +187,7 @@ def validate_vault():
     data = request.json
     warrior_id = data.get('warrior_id')
     passcode = data.get('passcode')
-    
+
     is_valid = validate_credentials(warrior_id, passcode)
     return jsonify({"valid": is_valid})
 
@@ -153,7 +198,7 @@ def send_whatsapp():
     data = request.json
     phone = data.get('phone')
     message = data.get('message')
-    
+
     result = send_whatsapp_message(phone, message)
     return jsonify({"status": result})
 
@@ -164,7 +209,7 @@ def generate_invoice():
     data = request.json
     member_data = data.get('member_data')
     amount = data.get('amount')
-    
+
     invoice_path = create_invoice(member_data, amount)
     return send_file(invoice_path, as_attachment=True)
 
