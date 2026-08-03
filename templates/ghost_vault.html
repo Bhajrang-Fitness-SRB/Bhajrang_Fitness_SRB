@@ -1,288 +1,58 @@
+<!-- templates/ghost_vault.html -->
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💀 Bhajrang Ghost Vault | Supreme Command</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Montserrat:wght@400;600;800&family=Share+Tech+Mono&display=swap"
-        rel="stylesheet">
+    <title>Ghost Vault - Secure Login</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <style>
-        :root {
-            --danger: #FF0000;
-            --danger-glow: rgba(255, 0, 0, 0.4);
-            --dark: #050505;
-            --glass: rgba(12, 12, 12, 0.9);
-            --gold: #D4AF37;
-            --info: #00E5FF;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Montserrat', sans-serif;
-        }
-
-        body {
-            background: radial-gradient(circle at center, #110000, #000);
-            color: #FFF;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        /* LOCK SCREEN */
-        #lock-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.95);
-            z-index: 9999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(20px);
-        }
-
-        .lock-card {
-            background: #0a0a0a;
-            border: 2px solid var(--danger);
-            border-radius: 20px;
-            padding: 40px;
-            text-align: center;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 0 40px var(--danger-glow);
-        }
-
-        .input-vault {
-            width: 100%;
-            background: #000;
-            border: 1px solid var(--danger);
-            color: var(--danger);
-            padding: 15px;
-            border-radius: 10px;
-            font-size: 24px;
-            text-align: center;
-            letter-spacing: 10px;
-            margin: 20px 0;
-            outline: none;
-        }
-
-        /* DASHBOARD */
-        #vault-dashboard {
-            display: none;
-            padding: 30px;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .vault-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid var(--danger);
-            padding-bottom: 15px;
-            margin-bottom: 30px;
-        }
-
-        .vault-header h1 {
-            font-family: 'Cinzel', serif;
-            color: var(--danger);
-            text-shadow: 0 0 10px var(--danger-glow);
-            letter-spacing: 3px;
-        }
-
-        .vault-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 20px;
-        }
-
-        .vault-card {
-            background: var(--glass);
-            border: 1px solid rgba(255, 0, 0, 0.2);
-            border-radius: 16px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-        }
-
-        .vault-card h3 {
-            color: var(--danger);
-            margin-bottom: 15px;
-            font-family: 'Cinzel', serif;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .btn-vault {
-            background: linear-gradient(135deg, var(--danger), #8B0000);
-            color: #FFF;
-            border: none;
-            padding: 12px 20px;
+        .vault-container { 
+            border: 3px solid #ff0000; 
+            background: rgba(255,0,0,0.02);
+            padding: 24px;
+            max-width: 420px;
+            margin: 40px auto;
             border-radius: 8px;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            width: 100%;
-            transition: 0.3s;
-            margin-top: 10px;
         }
-
-        .btn-vault:hover {
-            box-shadow: 0 0 15px var(--danger-glow);
-        }
-
-        .textarea-vault {
-            width: 100%;
-            background: #000;
-            border: 1px solid #333;
-            color: #FFF;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            resize: none;
-            margin-bottom: 10px;
-            outline: none;
-        }
-
-        .output-box {
-            background: #000;
-            border: 1px dashed var(--danger);
-            padding: 15px;
-            border-radius: 8px;
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 12px;
-            color: var(--info);
-            min-height: 80px;
-            max-height: 200px;
-            overflow-y: auto;
-            margin-top: 15px;
-            white-space: pre-wrap;
-        }
+        .secure-field { font-family: 'Courier New', monospace; letter-spacing: 5px; padding: 10px; width: 100%; }
+        button { padding: 10px 16px; margin-top: 12px; }
     </style>
 </head>
-
 <body>
-
-    <!-- 🔐 LOCK SCREEN -->
-    <div id="lock-screen">
-        <div class="lock-card">
-            <i class="fa-solid fa-skull-crossbones"
-                style="font-size: 50px; color: var(--danger); filter: drop-shadow(0 0 10px var(--danger-glow)); margin-bottom: 15px;"></i>
-            <h2 style="color: var(--danger); font-family: 'Cinzel', serif; letter-spacing: 2px;">GHOST VAULT</h2>
-            <p style="color: #888; font-size: 11px; margin-top: 5px;">RESTRICTED SUPREME ACCESS</p>
-            <input type="password" id="master_pin_input" class="input-vault" placeholder="••••••">
-            <button class="btn-vault" onclick="unlockVault()">Authenticate</button>
-            <div id="lock-msg" style="color: var(--danger); font-size: 12px; margin-top: 10px; font-weight: bold;">
-            </div>
-        </div>
+    <div class="vault-container">
+        <h2> GHOST VAULT ACCESS</h2>
+        <form id="vault-form">
+            <input type="text" id="warrior-id" placeholder="WARRIOR ID" class="secure-field" maxlength="16"><br/>
+            <input type="password" id="passcode" placeholder="PASSCODE" class="secure-field" maxlength="6"><br/>
+            <input type="date" id="dob-auth" style="display:none;">
+            <button type="submit">UNLOCK VAULT</button>
+        </form>
+        <div id="vault-status"></div>
     </div>
 
-    <!-- 🖥️ SUPREME COMMAND DASHBOARD -->
-    <div id="vault-dashboard">
-        <div class="vault-header">
-            <h1><i class="fa-solid fa-radiation"></i> GHOST VAULT: SUPREME COMMAND</h1>
-            <button class="btn-vault" style="width: auto; background: #222; border: 1px solid #444;"
-                onclick="location.reload()">Lock Vault</button>
-        </div>
-
-        <div class="vault-grid">
-
-            <!-- 1. GYM & STUDENT MEDICAL CARE -->
-            <div class="vault-card">
-                <h3><i class="fa-solid fa-user-doctor"></i> Gym & Student Medical Hub</h3>
-                <p style="color: #aaa; font-size: 12px; margin-bottom: 12px;">Analyze injuries, student vitals, and
-                    rehab routines.</p>
-                <textarea id="med_prompt" class="textarea-vault" rows="3"
-                    placeholder="Enter student injury details or fitness medical query..."></textarea>
-                <button class="btn-vault" onclick="runVaultAI('medical', 'med_prompt', 'med_out')">Consult Medical
-                    AI</button>
-                <div id="med_out" class="output-box">System idle...</div>
-            </div>
-
-            <!-- 2. DAILY ROUTINE & TASK BOOK -->
-            <div class="vault-card">
-                <h3><i class="fa-solid fa-calendar-check"></i> Daily Life & Task Book</h3>
-                <p style="color: #aaa; font-size: 12px; margin-bottom: 12px;">Optimize daily time-blocking and
-                    high-performance habits.</p>
-                <textarea id="routine_prompt" class="textarea-vault" rows="3"
-                    placeholder="List today's goals or ask for a daily productivity schedule..."></textarea>
-                <button class="btn-vault"
-                    onclick="runVaultAI('daily_routine', 'routine_prompt', 'routine_out')">Optimize Routine</button>
-                <div id="routine_out" class="output-box">System idle...</div>
-            </div>
-
-            <!-- 3. BIKE RIDING & ADVENTURE -->
-            <div class="vault-card">
-                <h3><i class="fa-solid fa-motorcycle"></i> Bike Riding & Touring</h3>
-                <p style="color: #aaa; font-size: 12px; margin-bottom: 12px;">Route planning, endurance, and machine
-                    maintenance.</p>
-                <textarea id="bike_prompt" class="textarea-vault" rows="3"
-                    placeholder="Plan a long ride route or check maintenance specs..."></textarea>
-                <button class="btn-vault" onclick="runVaultAI('bike_trip', 'bike_prompt', 'bike_out')">Generate Ride
-                    Plan</button>
-                <div id="bike_out" class="output-box">System idle...</div>
-            </div>
-
-            <!-- 4. OUT-OF-STATION INNOVATION CREATOR -->
-            <div class="vault-card">
-                <h3><i class="fa-solid fa-lightbulb"></i> Out-of-Station Creator</h3>
-                <p style="color: #aaa; font-size: 12px; margin-bottom: 12px;">Brainstorm new ideas, startups, and gym
-                    expansions.</p>
-                <textarea id="creator_prompt" class="textarea-vault" rows="3"
-                    placeholder="What new concept or business model do you want to build?"></textarea>
-                <button class="btn-vault" onclick="runVaultAI('creator', 'creator_prompt', 'creator_out')">Brainstorm &
-                    Build</button>
-                <div id="creator_out" class="output-box">System idle...</div>
-            </div>
-
-        </div>
-    </div>
-
-    <!-- 🧠 SCRIPT -->
     <script>
-        async function unlockVault() {
-            const pin = document.getElementById('master_pin_input').value.trim();
-            const msg = document.getElementById('lock-msg');
-            if (!pin) return;
+        document.getElementById('warrior-id').addEventListener('input', (e) => {
+            let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+            if (val.length > 3 && val[3] !== '-' ) {
+                val = val.slice(0,3) + '-' + val.slice(3);
+            }
+            e.target.value = val;
+        });
 
+        document.getElementById('vault-form').addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const id = document.getElementById('warrior-id').value;
+            const pass = document.getElementById('passcode').value;
+            const status = document.getElementById('vault-status');
+            status.textContent = 'Verifying...';
             try {
-                const res = await fetch('/api/vault/verify', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pin: pin })
-                });
-                const data = await res.json();
-                if (data.status === 'success') {
-                    document.getElementById('lock-screen').style.display = 'none';
-                    document.getElementById('vault-dashboard').style.display = 'block';
-                } else {
-                    msg.innerText = data.message;
-                }
-            } catch (e) { msg.innerText = "Connection Failed!"; }
-        }
-
-        async function runVaultAI(mode, inputId, outputId) {
-            const prompt = document.getElementById(inputId).value.trim();
-            const outBox = document.getElementById(outputId);
-            if (!prompt) return alert("Enter command first!");
-
-            outBox.innerText = "⚡ Decrypting Neural Core & Processing...";
-            try {
-                const res = await fetch('/api/vault/ai_generate', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode: mode, prompt: prompt })
-                });
-                const data = await res.json();
-                outBox.innerText = data.response;
-            } catch (e) { outBox.innerText = "❌ Neural Net Connection Lost."; }
-        }
+                const res = await fetch('/api/validate_vault', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id, pass})});
+                const j = await res.json();
+                status.textContent = j.ok ? 'Access Granted' : ('Denied: ' + (j.error || 'unknown'));
+            } catch (e) {
+                status.textContent = 'Verification failed';
+            }
+        });
     </script>
 </body>
-
 </html>
