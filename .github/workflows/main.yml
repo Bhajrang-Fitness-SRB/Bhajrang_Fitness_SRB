@@ -1,3 +1,0 @@
-Create the PR (auto-fills title/body) gh pr create --fill --base Bhajrang-Fitness-SRB --head add-ci-workflow --title "ci: add build & release workflow" --body "Adds workflow to generate invoice/certificate/flyer PDFs, produce an app bundle, and publish a GitHub Release. Triggers: manual and push to branch Bhajrang-Fitness-SRB."
-
-Merge the PR and delete the branch (merge commit)
