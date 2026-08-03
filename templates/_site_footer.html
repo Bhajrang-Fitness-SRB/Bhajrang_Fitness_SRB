@@ -1,0 +1,20 @@
+<!-- templates/_site_footer.html -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="left">
+      <img src="{{ url_for('static', filename='assets/logo_rb.png') }}" alt="rb logo" style="height:34px;" />
+      <span class="tag">Train • Transform • Conquer</span>
+    </div>
+    <div class="right">
+      <span>Follow us:</span>
+      <a href="#"><i class="fa-brands fa-facebook"></i></a>
+      <a href="#"><i class="fa-brands fa-instagram"></i></a>
+      <a href="#"><i class="fa-brands fa-youtube"></i></a>
+    </div>
+  </div>
+</footer>
+<style>
+.site-footer{background:#0a0a0a;color:#fff;padding:12px 16px}
+.site-footer .container{display:flex;justify-content:space-between;align-items:center}
+.site-footer a{color:#fff;margin-left:8px}
+</style>
