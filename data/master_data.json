@@ -1,0 +1,23 @@
+# Master data file and points configuration
+{
+  "points_name": "Coins",
+  "points_rules": {
+    "registration": 100,
+    "daily_checkin": 5,
+    "challenge_completion": 500,
+    "referral": 200,
+    "purchase_ratio_per_100": 1
+  },
+  "counts": {
+    "total_members": 0,
+    "active_members": 0,
+    "new_members_today": 0,
+    "frozen_members": 0,
+    "leads_total": 0
+  },
+  "pdf_renderer": "weasyprint",
+  "backup": {
+    "retention_days": 30,
+    "cloud_primary": "supabase"
+  }
+}
