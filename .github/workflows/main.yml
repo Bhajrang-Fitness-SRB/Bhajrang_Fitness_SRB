@@ -1,0 +1,2 @@
+YAML git add .github/workflows/build_and_release.yml git commit -m "ci: add build & release workflow" git push origin add-ci-workflow
+create the PR and merge (using gh CLI) gh pr create --fill --base Bhajrang-Fitness-SRB --head add-ci-workflow
