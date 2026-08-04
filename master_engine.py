@@ -39,7 +39,7 @@ ADMIN_SUPABASE = None
 if SUPABASE_SERVICE_ROLE_KEY:
     try:
         from supabase import create_client as _create_client
-n        ADMIN_SUPABASE = _create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        ADMIN_SUPABASE = _create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     except Exception:
         ADMIN_SUPABASE = None
 
@@ -139,6 +139,7 @@ def pending():
         return jsonify(SAMPLE_PENDING)
     try:
         resp = client.table('pending_approvals').select('*').order('created_at', desc=True).execute()
+        app.logger.debug('pending read resp data=%s error=%s', getattr(resp,'data',None), getattr(resp,'error',None))
         if getattr(resp, 'error', None):
             app.logger.error('Supabase pending read error: %s', resp.error)
             return jsonify(SAMPLE_PENDING)
@@ -189,7 +190,7 @@ def approve_member():
     """Approve a pending approval by moving it into the members table and deleting the pending row.
 
     Expects JSON with one of: pending_id (primary key of pending_approvals) or assigned_id (the proposed member id).
-    Uses SUPABASE_SERVICE_ROLE_KEY for server-side trusted writes if available."
+    Uses SUPABASE_SERVICE_ROLE_KEY for server-side trusted writes if available."""
     data = request.json or {}
     pending_id = data.get('pending_id') or data.get('id')
     assigned_id = data.get('assigned_id') or data.get('member_id') or data.get('assignedId')
@@ -208,6 +209,7 @@ def approve_member():
         else:
             return jsonify({'error': 'missing_identifier'}), 400
 
+        app.logger.debug('row_resp: data=%s error=%s', getattr(row_resp,'data',None), getattr(row_resp,'error',None))
         pending_row = (row_resp.data or [None])[0]
         if not pending_row:
             return jsonify({'error': 'pending_not_found'}), 404
@@ -223,6 +225,7 @@ def approve_member():
         }
 
         insert_resp = client.table('members').insert(member_data).execute()
+        app.logger.debug('insert_resp: data=%s error=%s', getattr(insert_resp,'data',None), getattr(insert_resp,'error',None))
         if getattr(insert_resp, 'error', None):
             app.logger.error('Failed to insert member: %s', insert_resp.error)
             return jsonify({'error': 'insert_failed'}), 500
@@ -230,6 +233,7 @@ def approve_member():
         # Delete the pending row
         try:
             del_resp = client.table('pending_approvals').delete().eq('id', pending_row.get('id')).execute()
+            app.logger.debug('del_resp: data=%s error=%s', getattr(del_resp,'data',None), getattr(del_resp,'error',None))
             if getattr(del_resp, 'error', None):
                 app.logger.warning('Failed to delete pending row: %s', del_resp.error)
         except Exception:
