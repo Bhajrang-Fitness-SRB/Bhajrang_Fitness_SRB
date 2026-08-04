@@ -24,21 +24,24 @@ app = Flask(__name__)
 # Configuration with safe defaults so route decorators never receive None
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 ADMIN_PORTAL_URL = os.getenv("ADMIN_PORTAL_URL") or "/villain"
 DESK_PORTAL_URL = os.getenv("DESK_PORTAL_URL") or "/administration"
 STAFF_PORTAL_URL = os.getenv("STAFF_PORTAL_URL") or "/commander"
 STUDENT_PORTAL_URL = os.getenv("STUDENT_PORTAL_URL") or "/warrior"
 
-# Initialize Supabase client only when configured
-supabase = None
-if SUPABASE_URL and SUPABASE_KEY:
+# Use helper to create supabase client when available
+from utils.supabase_client import get_supabase_client
+supabase = get_supabase_client()
+
+# Admin/service-role client for trusted writes (only if configured)
+ADMIN_SUPABASE = None
+if SUPABASE_SERVICE_ROLE_KEY:
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        print("Warning: Supabase client init failed:", e)
-        supabase = None
-else:
-    print("Supabase not configured; running in offline/demo mode")
+        from supabase import create_client as _create_client
+n        ADMIN_SUPABASE = _create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    except Exception:
+        ADMIN_SUPABASE = None
 
 # Sample data for demonstration / fallback
 SAMPLE_MEMBERS = [
@@ -82,65 +85,83 @@ def register():
 @app.route('/api/telemetry')
 def telemetry():
     # In real implementation, fetch from Supabase when available
-    if supabase:
-        try:
-            total_members = supabase.table('members').select('id').execute().data
-            total_members = len(total_members or [])
-        except Exception:
+    try:
+        client = supabase or get_supabase_client()
+        if client:
+            try:
+                total_members_resp = client.table('members').select('id').execute()
+                total_members = len(total_members_resp.data or [])
+            except Exception:
+                total_members = len(SAMPLE_MEMBERS)
+        else:
             total_members = len(SAMPLE_MEMBERS)
-    else:
-        total_members = len(SAMPLE_MEMBERS)
 
-    today_revenue = SAMPLE_FINANCE["total_revenue"]
-    active_attendance = 12  # Mock data
-    pending_requests = len(SAMPLE_PENDING)
+        today_revenue = SAMPLE_FINANCE["total_revenue"]
+        active_attendance = 12  # Mock data
+        pending_requests = len(SAMPLE_PENDING)
 
-    return jsonify({
-        "total_members": total_members,
-        "today_revenue": today_revenue,
-        "active_attendance": active_attendance,
-        "pending_requests": pending_requests
-    })
+        return jsonify({
+            "total_members": total_members,
+            "today_revenue": today_revenue,
+            "active_attendance": active_attendance,
+            "pending_requests": pending_requests
+        })
+    except Exception as e:
+        app.logger.exception('Telemetry endpoint error')
+        return jsonify({'error': 'internal'}), 500
 
 @app.route('/api/members')
 def members():
     # Prefer live data when Supabase is configured, otherwise return sample data
-    if supabase:
+    client = supabase or get_supabase_client()
+    if client:
         try:
-            resp = supabase.table('members').select('*').execute()
+            resp = client.table('members').select('*').execute()
+            if getattr(resp, 'error', None):
+                app.logger.error('Supabase members read error: %s', resp.error)
+                return jsonify(SAMPLE_MEMBERS)
             return jsonify(resp.data or [])
         except Exception as e:
-            print('Supabase members read failed:', e)
+            app.logger.exception('Supabase members read failed')
             return jsonify(SAMPLE_MEMBERS)
     return jsonify(SAMPLE_MEMBERS)
 
 @app.route('/api/pending')
 def pending():
-    if supabase:
-        try:
-            resp = supabase.table('pending_approvals').select('*').execute()
-            return jsonify(resp.data or [])
-        except Exception as e:
-            print('Supabase pending read failed:', e)
+    """Return pending approvals from Supabase or fallback sample data.
+
+    This endpoint logs errors and returns sample data when Supabase is not configured
+    or when an error occurs, to avoid crashing the web UI.
+    """
+    client = supabase or get_supabase_client()
+    if not client:
+        app.logger.info('Supabase not configured; returning SAMPLE_PENDING')
+        return jsonify(SAMPLE_PENDING)
+    try:
+        resp = client.table('pending_approvals').select('*').order('created_at', desc=True).execute()
+        if getattr(resp, 'error', None):
+            app.logger.error('Supabase pending read error: %s', resp.error)
             return jsonify(SAMPLE_PENDING)
-    return jsonify(SAMPLE_PENDING)
+        return jsonify(resp.data or [])
+    except Exception:
+        app.logger.exception('Unexpected error reading pending_approvals')
+        return jsonify(SAMPLE_PENDING)
 
 @app.route('/api/finance')
 def finance():
-    if supabase:
+    client = supabase or get_supabase_client()
+    if client:
         try:
-            # Example aggregate — adapt to your schema
-            resp = supabase.table('billing').select('amount').execute()
+            resp = client.table('billing').select('amount').execute()
             amounts = [r.get('amount', 0) for r in (resp.data or [])]
             total_revenue = sum(amounts)
-            # Simplified example; replace with your real calculations
             return jsonify({
                 'total_revenue': total_revenue,
                 'total_expenses': SAMPLE_FINANCE['total_expenses'],
                 'net_profit': total_revenue - SAMPLE_FINANCE['total_expenses']
             })
-        except Exception as e:
-            print('Supabase finance read failed:', e)
+        except Exception:
+            app.logger.exception('Supabase finance read failed')
             return jsonify(SAMPLE_FINANCE)
     return jsonify(SAMPLE_FINANCE)
 
@@ -165,13 +186,67 @@ def generate_qr(member_id):
 
 @app.route('/api/approve_member', methods=['POST'])
 def approve_member():
-    data = request.json
-    member_id = data.get('member_id')
+    """Approve a pending approval by moving it into the members table and deleting the pending row.
 
-    # In real implementation, move from pending to members table
-    # and create ghost vault credentials
+    Expects JSON with one of: pending_id (primary key of pending_approvals) or assigned_id (the proposed member id).
+    Uses SUPABASE_SERVICE_ROLE_KEY for server-side trusted writes if available."
+    data = request.json or {}
+    pending_id = data.get('pending_id') or data.get('id')
+    assigned_id = data.get('assigned_id') or data.get('member_id') or data.get('assignedId')
 
-    return jsonify({"status": "approved", "member_id": member_id})
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        app.logger.error('approve_member: Supabase not configured')
+        return jsonify({'error': 'supabase_not_configured'}), 500
+
+    try:
+        # Fetch the pending row
+        if pending_id:
+            row_resp = client.table('pending_approvals').select('*').eq('id', pending_id).limit(1).execute()
+        elif assigned_id:
+            row_resp = client.table('pending_approvals').select('*').eq('assigned_id', assigned_id).limit(1).execute()
+        else:
+            return jsonify({'error': 'missing_identifier'}), 400
+
+        pending_row = (row_resp.data or [None])[0]
+        if not pending_row:
+            return jsonify({'error': 'pending_not_found'}), 404
+
+        # Build member record from pending_row (map fields as needed)
+        member_data = {
+            'id': pending_row.get('assigned_id') or str(uuid.uuid4()),
+            'name': pending_row.get('name') or pending_row.get('full_name'),
+            'phone': pending_row.get('phone'),
+            'package': pending_row.get('package') or 'Default',
+            'status': 'Active',
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        insert_resp = client.table('members').insert(member_data).execute()
+        if getattr(insert_resp, 'error', None):
+            app.logger.error('Failed to insert member: %s', insert_resp.error)
+            return jsonify({'error': 'insert_failed'}), 500
+
+        # Delete the pending row
+        try:
+            del_resp = client.table('pending_approvals').delete().eq('id', pending_row.get('id')).execute()
+            if getattr(del_resp, 'error', None):
+                app.logger.warning('Failed to delete pending row: %s', del_resp.error)
+        except Exception:
+            app.logger.exception('Failed to delete pending row after insert')
+
+        # Send welcome message (best-effort)
+        try:
+            from _03_Automation_Bots.whatsapp_telegram_bot import send_welcome_message
+            if member_data.get('phone'):
+                send_welcome_message(member_data.get('phone'), member_data.get('name'))
+        except Exception:
+            app.logger.exception('Failed to send welcome message')
+
+        return jsonify({'status': 'approved', 'member_id': member_data['id']})
+    except Exception:
+        app.logger.exception('approve_member failed')
+        return jsonify({'error': 'internal'}), 500
 
 @app.route('/api/generate_id')
 def generate_id():
