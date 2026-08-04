@@ -375,12 +375,9 @@
                 const data = await res.json();
                 resBox.innerHTML = resBox.innerHTML.replace('> [OMNI CORE PROCESSING...]', `> ${data.response}`);
             } catch(e) { resBox.innerHTML = resBox.innerHTML.replace('> [OMNI CORE PROCESSING...]', '> [CONNECTION LOST]'); }
-        }
-
         // Start Auto-Sync Engine
         runAutoSync(); setInterval(runAutoSync, 10000);
-        fetchDirectory(); // Initial fetch for Database tab
+        fetchDirectory();
     </script>
 </body>
 </html>
-
