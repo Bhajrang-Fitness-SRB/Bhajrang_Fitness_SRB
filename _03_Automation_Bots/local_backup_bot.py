@@ -1,110 +1,91 @@
+r"""
+Run this file locally on your PC to back up member photos/signatures
+from Supabase to a local folder.
+
+Setup (one-time):
+  1. pip install supabase python-dotenv
+  2. Create a file named `local_backup.env` in this same folder with:
+       SUPABASE_URL=https://qcabkhhbcdjyefbwzexj.supabase.co
+       SUPABASE_KEY=your-service-or-anon-key-here
+       BACKUP_DIR=C:\Bhajrang_Local_Vault      (optional, has a default)
+
+Run:
+  python local_backup_bot.py
+"""
 import os
-import json
-import gzip
-import stat
-from datetime import datetime, timedelta
+import base64
+import datetime
 from supabase import create_client
 from dotenv import load_dotenv
-import logging
 
-load_dotenv('master_vault.env')
+load_dotenv("local_backup.env")
 
-logger = logging.getLogger(__name__)
-if not logger.handlers:
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+SUPA_URL = os.getenv("SUPABASE_URL")
+SUPA_KEY = os.getenv("SUPABASE_KEY")
 
+if not SUPA_URL or not SUPA_KEY:
+    raise SystemExit(
+        "❌ Missing credentials. Create a 'local_backup.env' file next to this script "
+        "with SUPABASE_URL and SUPABASE_KEY set (see the instructions at the top of this file)."
+    )
 
-def _fetch_table(supabase, table_name: str, page_size: int = 1000):
-    """
-    Generator to page through a Supabase table.
-    Yields lists of rows.
-    """
-    offset = 0
-    while True:
-        resp = supabase.table(table_name).select("*").range(offset, offset + page_size - 1).execute()
-        if resp.error:
-            logger.error("Error fetching table %s: %s", table_name, resp.error)
-            raise RuntimeError(f"Failed to fetch {table_name}: {resp.error}")
-        rows = resp.data or []
-        if not rows:
-            break
-        yield rows
-        if len(rows) < page_size:
-            break
-        offset += page_size
+supabase = create_client(SUPA_URL, SUPA_KEY)
+
+BACKUP_DIR = os.getenv("BACKUP_DIR", os.path.join(os.path.expanduser("~"), "Bhajrang_Local_Vault"))
+SELFIE_DIR = os.path.join(BACKUP_DIR, "selfies")
+SIGNATURE_DIR = os.path.join(BACKUP_DIR, "signatures")
+os.makedirs(SELFIE_DIR, exist_ok=True)
+os.makedirs(SIGNATURE_DIR, exist_ok=True)
 
 
-def backup_database(backup_dir: str = "backups", compress: bool = True, keep_days: int = 7):
-    """
-    Backs up Supabase database to local storage. Uses paging to avoid high memory usage.
-    """
+def save_base64_image(b64_string, out_path):
+    """Decodes a base64 image string (with or without a data: URI prefix) and writes it to disk."""
+    if not b64_string:
+        return False
     try:
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_KEY")
-        if not supabase_url or not supabase_key:
-            logger.error("Supabase configuration missing")
-            return None
-
-        supabase = create_client(supabase_url, supabase_key)
-
-        os.makedirs(backup_dir, exist_ok=True)
-
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        filename = f"backup_{timestamp}.json"
-        filepath = os.path.join(backup_dir, filename)
-
-        # Stream-write JSON to reduce peak memory
-        with open(filepath, "w", encoding="utf-8") as out_f:
-            out_f.write("{\n")
-            out_f.write(f'  "timestamp": "{timestamp}",\n')
-
-            tables = ["members", "billing", "attendance_logs"]
-            for i, table in enumerate(tables):
-                out_f.write(f'  "{table}": ')
-                first_chunk = True
-                out_f.write("[\n")
-                for chunk in _fetch_table(supabase, table):
-                    for row in chunk:
-                        if not first_chunk:
-                            out_f.write(",\n")
-                        out_f.write(json.dumps(row, default=str))
-                        first_chunk = False
-                out_f.write("\n]")
-                out_f.write(",\n" if i < len(tables) - 1 else "\n")
-            out_f.write("}\n")
-
-        # Restrict file permissions
-        os.chmod(filepath, stat.S_IRUSR | stat.S_IWUSR)
-
-        final_path = filepath
-        if compress:
-            gz_path = filepath + ".gz"
-            with open(filepath, "rb") as f_in, gzip.open(gz_path, "wb") as f_out:
-                f_out.writelines(f_in)
-            os.remove(filepath)
-            final_path = gz_path
-            os.chmod(final_path, stat.S_IRUSR | stat.S_IWUSR)
-
-        logger.info("Database backup created: %s", final_path)
-
-        # Rotate old backups
-        cutoff = datetime.utcnow() - timedelta(days=keep_days)
-        for fname in os.listdir(backup_dir):
-            full = os.path.join(backup_dir, fname)
-            try:
-                mtime = datetime.utcfromtimestamp(os.path.getmtime(full))
-                if mtime < cutoff:
-                    os.remove(full)
-                    logger.info("Removed old backup: %s", full)
-            except Exception:
-                logger.exception("Error rotating backup file: %s", full)
-
-        return final_path
-
+        if "," in b64_string and b64_string.strip().startswith("data:"):
+            b64_string = b64_string.split(",", 1)[1]
+        with open(out_path, "wb") as f:
+            f.write(base64.b64decode(b64_string))
+        return True
     except Exception as e:
-        logger.exception("Backup failed")
-        return None
+        print(f"   ⚠️ Could not decode/save image: {e}")
+        return False
+
+
+def main():
+    print(f"Starting Local Sync → backing up into: {BACKUP_DIR}")
+
+    # Field names matched to the real schema used in master_engine.py:
+    # status is stored uppercase as "APPROVED", and the assigned member ID
+    # is stored in `original_frozen_id`, not `assigned_id`.
+    res = supabase.table('pending_approvals').select('*').eq('status', 'APPROVED').execute()
+
+    if not res.data:
+        print("No approved records found to back up.")
+        return
+
+    backed_up = 0
+    for record in res.data:
+        mem_id = record.get('original_frozen_id') or f"unassigned_{record.get('id')}"
+        name = record.get('name', 'Unknown')
+        print(f"Backing up data for {mem_id} ({name})...")
+
+        selfie_saved = save_base64_image(
+            record.get('photo_base64'),
+            os.path.join(SELFIE_DIR, f"{mem_id}.jpg")
+        )
+        sig_saved = save_base64_image(
+            record.get('signature_b64'),
+            os.path.join(SIGNATURE_DIR, f"{mem_id}.png")
+        )
+
+        if selfie_saved or sig_saved:
+            backed_up += 1
+
+    print(f"✅ Local Backup Complete! {backed_up}/{len(res.data)} records backed up to {BACKUP_DIR}")
+    print(f"   Finished at {datetime.datetime.now().isoformat()}")
 
 
 if __name__ == "__main__":
-    backup_database()
+    main()
