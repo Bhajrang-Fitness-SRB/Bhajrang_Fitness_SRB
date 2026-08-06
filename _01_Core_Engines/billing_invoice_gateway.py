@@ -1,112 +1,116 @@
-# _01_Core_Engines/billing_invoice_gateway.py
-"""
-Invoice generation helper: computes per-line totals and renders invoice HTML using Jinja templates.
-"""
 import os
-import math
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+import time
 from datetime import datetime
+from fpdf import FPDF
+import qrcode
 
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-TEMPLATE_DIR = os.path.join(os.path.dirname(BASE_DIR), 'templates')
-env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=select_autoescape(['html','xml']))
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+# ^ NOTE: this file lives inside 03_Automation_Bots/, but the Flask app's
+# static/ folder is at the project root. Without going up one level here,
+# invoices would be saved to 03_Automation_Bots/static/invoices/ instead
+# of the folder Flask actually serves — resulting in a broken pdf_url.
 
+def generate_invoice_pdf(member_id, pkg_amount, discount_amount, gym_name="Bhajrang Fitness SRB", upi_id=""):
+    print(f"⏳ [BILLING ENGINE] Generating Premium Invoice for {member_id}...")
+    
+    # ১. ফোল্ডার তৈরি করা (যদি না থাকে)
+    invoice_dir = os.path.join(BASE_DIR, 'static', 'invoices')
+    qr_dir = os.path.join(BASE_DIR, 'static', 'assets', 'qr_vault')
+    os.makedirs(invoice_dir, exist_ok=True)
+    os.makedirs(qr_dir, exist_ok=True)
 
-def _round_currency(x):
-    return float(round(x, 2))
+    # ২. হিসাব-নিকাশ
+    net_amount = float(pkg_amount) - float(discount_amount)
+    timestamp = int(time.time())
+    date_str = datetime.now().strftime("%d-%b-%Y")
+    inv_no = f"INV-{member_id}-{timestamp}"
 
+    # ৩. ডাইনামিক UPI QR Code জেনারেট করা
+    qr_path = os.path.join(qr_dir, f"{inv_no}_qr.png")
+    
+    # যদি UPI ID থাকে, তবে স্ক্যান করলেই পেমেন্ট অ্যাপে অ্যামাউন্ট বসে যাবে!
+    if upi_id:
+        upi_url = f"upi://pay?pa={upi_id}&pn={gym_name.replace(' ', '%20')}&am={net_amount}&cu=INR"
+    else:
+        upi_url = f"Payment for {gym_name} - Invoice {inv_no}"
+        
+    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr.add_data(upi_url)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    qr_img.save(qr_path)
 
-def compute_invoice_totals(invoice):
-    """
-    invoice: {
-        'number': str,
-        'date': iso str,
-        'items': [ {description, sku, qty, unit_price, discount_percent, discount_amount, pt_fee, prep_fee, pro_fee, tax_percent} ],
-        'paid': float
-    }
-    returns computed invoice dict with subtotal, taxes_and_fees, total, due, line totals
-    """
-    items = []
-    subtotal = 0.0
-    taxes_and_fees = 0.0
+    # ৪. PDF ডিজাইন তৈরি করা (fpdf ব্যবহার করে)
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Header - Gym Name
+    pdf.set_font("Arial", 'B', 24)
+    pdf.set_text_color(212, 175, 55) # Bhajrang Gold Color
+    pdf.cell(200, 15, gym_name.upper(), ln=True, align='C')
+    
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(50, 50, 50)
+    pdf.cell(200, 10, "PREMIUM MEMBERSHIP INVOICE", ln=True, align='C')
+    pdf.line(10, 35, 200, 35)
+    pdf.ln(10)
 
-    for it in invoice.get('items', []):
-        qty = float(it.get('qty', 1))
-        unit = float(it.get('unit_price', 0))
-        base = qty * unit
-        discount_amount = float(it.get('discount_amount', 0) or 0)
-        if it.get('discount_percent'):
-            discount_amount = base * float(it.get('discount_percent')) / 100.0
-        pt_fee = float(it.get('pt_fee', 0) or 0)
-        prep_fee = float(it.get('prep_fee', 0) or 0)
-        pro_fee = float(it.get('pro_fee', 0) or 0)
-        taxable = base - discount_amount + pt_fee + prep_fee + pro_fee
-        tax_percent = float(it.get('tax_percent', 0) or 0)
-        tax_amount = taxable * tax_percent / 100.0
-        line_total = taxable + tax_amount
-        subtotal += base
-        taxes_and_fees += (discount_amount * -1) + pt_fee + prep_fee + pro_fee + tax_amount
-        items.append({
-            'description': it.get('description'),
-            'sku': it.get('sku'),
-            'qty': qty,
-            'unit_price': _round_currency(unit),
-            'discount_amount': _round_currency(discount_amount),
-            'pt_fee': _round_currency(pt_fee),
-            'prep_fee': _round_currency(prep_fee),
-            'pro_fee': _round_currency(pro_fee),
-            'tax_percent': tax_percent,
-            'line_total': _round_currency(line_total)
-        })
+    # Invoice Details
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(100, 10, f"Invoice No: {inv_no}")
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(90, 10, f"Date: {date_str}", align='R', ln=True)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 10, f"Warrior ID: {member_id}", ln=True)
+    pdf.line(10, 60, 200, 60)
+    pdf.ln(10)
 
-    subtotal = _round_currency(subtotal)
-    taxes_and_fees = _round_currency(taxes_and_fees)
+    # Billing Table Header
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(140, 10, "Description", border=1, fill=True)
+    pdf.cell(50, 10, "Amount (INR)", border=1, ln=True, align='R', fill=True)
+    
+    # Billing Table Content
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(140, 10, "Premium Gym Membership Package", border=1)
+    pdf.cell(50, 10, f"Rs. {pkg_amount:.2f}", border=1, ln=True, align='R')
+    
+    pdf.cell(140, 10, "Discount Applied", border=1)
+    pdf.cell(50, 10, f"- Rs. {discount_amount:.2f}", border=1, ln=True, align='R')
+    
+    # Total Row
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_fill_color(212, 175, 55) # Gold
+    pdf.set_text_color(255, 255, 255) # White text
+    pdf.cell(140, 12, "TOTAL PAYABLE", border=1, fill=True)
+    pdf.cell(50, 12, f"Rs. {net_amount:.2f}", border=1, ln=True, align='R', fill=True)
+    pdf.ln(15)
 
-    total = subtotal + taxes_and_fees
-    total = _round_currency(total)
+    # QR Code Section
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 10, "Scan to Pay via Any UPI App", ln=True, align='C')
+    pdf.image(qr_path, x=85, y=140, w=40)
+    
+    # Footer
+    pdf.set_y(260)
+    pdf.set_font("Arial", 'I', 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(200, 10, "Thank you for choosing Bhajrang Fitness! Train Hard, Stay Strong.", ln=True, align='C')
 
-    paid = float(invoice.get('paid', 0) or 0)
-    due = _round_currency(total - paid)
+    # ৫. PDF সেভ করা
+    pdf_filename = f"{inv_no}.pdf"
+    pdf_path = os.path.join(invoice_dir, pdf_filename)
+    pdf.output(pdf_path)
 
-    round_off = _round_currency(total - round(total, 0))
+    # ৬. টেম্পোরারি QR ইমেজ ডিলিট করে দেওয়া (জায়গা বাঁচানোর জন্য)
+    try:
+        os.remove(qr_path)
+    except:
+        pass
 
-    return {
-        'items': items,
-        'subtotal': subtotal,
-        'taxes_and_fees': taxes_and_fees,
-        'total': total,
-        'paid': _round_currency(paid),
-        'due': due,
-        'round_off': round_off,
-        'number': invoice.get('number') or f"INV-{int(datetime.utcnow().timestamp())}",
-        'date': invoice.get('date') or datetime.utcnow().isoformat()
-    }
-
-
-def render_invoice_html(invoice, member=None, settings=None, template_name='invoice_template_premium.html'):
-    ctx = compute_invoice_totals(invoice)
-    ctx_invoice = {
-        'number': ctx['number'],
-        'date': ctx['date'],
-        'items': ctx['items'],
-        'subtotal': ctx['subtotal'],
-        'taxes_and_fees': ctx['taxes_and_fees'],
-        'total': ctx['total'],
-        'paid': ctx['paid'],
-        'due': ctx['due'],
-        'round_off': ctx['round_off']
-    }
-    template = env.get_template(template_name)
-    html = template.render(invoice=ctx_invoice, member=member or {}, settings=settings or {})
-    return html
-
-
-if __name__ == '__main__':
-    # quick local test
-    sample = {
-        'items':[{'description':'Monthly Membership','sku':'PKG001','qty':1,'unit_price':1000,'discount_percent':10,'pt_fee':50,'prep_fee':20,'pro_fee':0,'tax_percent':18}],
-        'paid':200
-    }
-    html = render_invoice_html(sample, member={'name':'Test','id':'W-001','phone':'9999999999'}, settings={'gym_name':'Bhajrang Fitness SRB'})
-    open('/tmp/test_invoice.html','w',encoding='utf-8').write(html)
-    print('Wrote /tmp/test_invoice.html')
+    pdf_url = f"/static/invoices/{pdf_filename}"
+    print(f"✅ Invoice Generated Successfully: {pdf_url}")
+    return inv_no, pdf_url
