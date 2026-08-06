@@ -1,6 +1,8 @@
-# Local secret vault (keep local only)
-master_vault.env
+__pycache__/
+*.pyc
 .env
+master_vault.env
+
 
 # Python
 __pycache__/
