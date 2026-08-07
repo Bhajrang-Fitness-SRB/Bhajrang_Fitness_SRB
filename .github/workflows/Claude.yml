@@ -1,2 +1,0 @@
-- name: Claude AutoFix
-  uses: enriconunes/claude-autofix-action@v2.1.2
