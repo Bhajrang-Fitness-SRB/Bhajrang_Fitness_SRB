@@ -1,0 +1,30 @@
+<!-- templates/_site_header.html -->
+<header class="site-header">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="" crossorigin="anonymous">
+  <div class="container header-inner">
+    <div class="logo-left">
+      <img src="{{ url_for('static', filename='assets/logo_gym.png') }}" alt="Gym Logo" class="main-logo"/>
+    </div>
+    <nav class="main-nav">
+      <ul>
+        <li><a href="/villain">Dashboard</a></li>
+        <li><a href="/warrior">Members</a></li>
+        <li><a href="/kiosk">Kiosk</a></li>
+        <li><a href="/inventory">Inventory</a></li>
+        <li><a href="/billing">Billing</a></li>
+      </ul>
+    </nav>
+    <div class="logo-right">
+      <img src="{{ url_for('static', filename='assets/logo_team.png') }}" alt="Team" class="team-logo"/>
+      <img src="{{ url_for('static', filename='assets/powered_by.png') }}" alt="Powered by" class="powered-logo"/>
+    </div>
+  </div>
+</header>
+<style>
+.site-header{background:linear-gradient(90deg,#0f0c29,#302b63);color:#fff;padding:10px 0}
+.header-inner{display:flex;align-items:center;justify-content:space-between}
+.logo-left img.main-logo{height:54px}
+.logo-right img{height:36px;margin-left:8px;opacity:0.95}
+.main-nav ul{list-style:none;display:flex;gap:12px}
+.main-nav a{color:#fff;text-decoration:none;font-weight:600}
+</style>
