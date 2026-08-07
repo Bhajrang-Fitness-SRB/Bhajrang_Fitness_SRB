@@ -1,5 +1,0 @@
-/* static/css/welcome.css */
-#welcome-overlay{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(5,5,5,0.8);display:flex;align-items:center;justify-content:center;z-index:9999}
-.welcome-box{background:linear-gradient(135deg,#ffffff10,#00000030);padding:26px;border-radius:12px;text-align:center;color:#fff;backdrop-filter: blur(6px);box-shadow:0 10px 40px rgba(0,0,0,0.6)}
-.welcome-img{width:160px;margin-bottom:12px;filter:drop-shadow(0 8px 20px rgba(0,0,0,0.6))}
-#welcome-close{background:#ff4b2b;border:none;color:#fff;padding:10px 18px;border-radius:8px;cursor:pointer}
