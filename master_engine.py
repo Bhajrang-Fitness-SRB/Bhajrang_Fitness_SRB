@@ -182,7 +182,6 @@ def generate_qr(member_id):
 
     # Encode to base64
     img_str = pybase64.b64encode(img_buffer.getvalue()).decode()
-
     return jsonify({"qr_code": img_str})
 
 @app.route('/api/approve_member', methods=['POST'])
