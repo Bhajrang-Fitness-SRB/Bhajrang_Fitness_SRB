@@ -185,72 +185,121 @@ def generate_qr(member_id):
 
     return jsonify({"qr_code": img_str})
 
+@app.route('/api/master_sync')
+def master_sync():
+    """Polled every 10s by the dashboard/approvals UI (runAutoSync in index.html).
+
+    Returns the exact shape the frontend expects:
+    { status, dashboard: { total_members, today_attendance, today_revenue, pending_count, net_profit }, pending_records: [...] }
+    """
+    client = supabase or get_supabase_client()
+    if not client:
+        app.logger.info('master_sync: Supabase not configured; returning sample data')
+        return jsonify({
+            'status': 'success',
+            'dashboard': {
+                'total_members': len(SAMPLE_MEMBERS),
+                'today_attendance': 0,
+                'today_revenue': SAMPLE_FINANCE['total_revenue'],
+                'pending_count': len(SAMPLE_PENDING),
+                'net_profit': SAMPLE_FINANCE['net_profit']
+            },
+            'pending_records': SAMPLE_PENDING
+        })
+
+    try:
+        today = datetime.utcnow().date().isoformat()
+
+        total_members = len((client.table('members').select('member_id').execute().data or []))
+
+        today_attendance = len((client.table('attendance_logs')
+                                 .select('id')
+                                 .gte('punch_in_time', today)
+                                 .execute().data or []))
+
+        billing_today = client.table('billing').select('paid').eq('payment_date', today).execute().data or []
+        today_revenue = sum(r.get('paid') or 0 for r in billing_today)
+
+        expenses_today = client.table('expenses').select('amount').eq('expense_date', today).execute().data or []
+        today_expenses = sum(r.get('amount') or 0 for r in expenses_today)
+
+        pending_rows = (client.table('pending_approvals')
+                         .select('id,name,mobile,created_at')
+                         .eq('status', 'PENDING')
+                         .order('created_at', desc=True)
+                         .execute().data or [])
+
+        return jsonify({
+            'status': 'success',
+            'dashboard': {
+                'total_members': total_members,
+                'today_attendance': today_attendance,
+                'today_revenue': today_revenue,
+                'pending_count': len(pending_rows),
+                'net_profit': today_revenue - today_expenses
+            },
+            'pending_records': pending_rows
+        })
+    except Exception:
+        app.logger.exception('master_sync failed')
+        return jsonify({'status': 'error', 'message': 'sync_failed'}), 500
+
+
 @app.route('/api/approve_member', methods=['POST'])
 def approve_member():
-    """Approve a pending approval by moving it into the members table and deleting the pending row.
+    """Approve a pending registration: generates member_id, creates the members/ghost_vault/billing
+    rows, and marks the pending_approvals row APPROVED (via the approve_member() Postgres function).
 
-    Expects JSON with one of: pending_id (primary key of pending_approvals) or assigned_id (the proposed member id).
-    Uses SUPABASE_SERVICE_ROLE_KEY for server-side trusted writes if available."""
+    Expects the payload sent by processApproval() in index.html:
+    { req_id, class_type, duration, amount, discount, paid }
+    """
     data = request.json or {}
-    pending_id = data.get('pending_id') or data.get('id')
-    assigned_id = data.get('assigned_id') or data.get('member_id') or data.get('assignedId')
+    req_id = data.get('req_id')
+    class_type = data.get('class_type') or 'Single'
+    try:
+        duration = int(data.get('duration') or 1)
+        amount = int(float(data.get('amount') or 0))
+        discount = int(float(data.get('discount') or 0))
+        paid = int(float(data.get('paid') or 0))
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'invalid_number_fields'}), 400
+
+    if not req_id:
+        return jsonify({'status': 'error', 'message': 'missing_req_id'}), 400
 
     client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if not client:
         app.logger.error('approve_member: Supabase not configured')
-        return jsonify({'error': 'supabase_not_configured'}), 500
+        return jsonify({'status': 'error', 'message': 'supabase_not_configured'}), 500
 
     try:
-        # Fetch the pending row
-        if pending_id:
-            row_resp = client.table('pending_approvals').select('*').eq('id', pending_id).limit(1).execute()
-        elif assigned_id:
-            row_resp = client.table('pending_approvals').select('*').eq('assigned_id', assigned_id).limit(1).execute()
-        else:
-            return jsonify({'error': 'missing_identifier'}), 400
+        rpc_resp = client.rpc('approve_member', {
+            'p_approval_id': int(req_id),
+            'p_package_name': class_type,
+            'p_amount': amount,
+            'p_package_months': duration,
+            'p_discount': discount,
+            'p_paid': paid
+        }).execute()
 
-        app.logger.debug('row_resp: data=%s error=%s', getattr(row_resp,'data',None), getattr(row_resp,'error',None))
-        pending_row = (row_resp.data or [None])[0]
-        if not pending_row:
-            return jsonify({'error': 'pending_not_found'}), 404
-
-        # Build member record from pending_row (map fields as needed)
-        member_data = {
-            'id': pending_row.get('assigned_id') or str(uuid.uuid4()),
-            'name': pending_row.get('name') or pending_row.get('full_name'),
-            'phone': pending_row.get('phone'),
-            'package': pending_row.get('package') or 'Default',
-            'status': 'Active',
-            'created_at': datetime.utcnow().isoformat()
-        }
-
-        insert_resp = client.table('members').insert(member_data).execute()
-        app.logger.debug('insert_resp: data=%s error=%s', getattr(insert_resp,'data',None), getattr(insert_resp,'error',None))
-        if getattr(insert_resp, 'error', None):
-            app.logger.error('Failed to insert member: %s', insert_resp.error)
-            return jsonify({'error': 'insert_failed'}), 500
-
-        # Delete the pending row
-        try:
-            del_resp = client.table('pending_approvals').delete().eq('id', pending_row.get('id')).execute()
-            app.logger.debug('del_resp: data=%s error=%s', getattr(del_resp,'data',None), getattr(del_resp,'error',None))
-            if getattr(del_resp, 'error', None):
-                app.logger.warning('Failed to delete pending row: %s', del_resp.error)
-        except Exception:
-            app.logger.exception('Failed to delete pending row after insert')
+        member_id = rpc_resp.data
+        if not member_id:
+            app.logger.error('approve_member RPC returned no member_id: %s', rpc_resp)
+            return jsonify({'status': 'error', 'message': 'approval_failed'}), 500
 
         # Send welcome message (best-effort)
         try:
             from _03_Automation_Bots.whatsapp_telegram_bot import send_welcome_message
-            if member_data.get('phone'):
-                send_welcome_message(member_data.get('phone'), member_data.get('name'))
+            pending_row = (client.table('pending_approvals').select('name,mobile').eq('id', req_id).limit(1).execute().data or [None])[0]
+            if pending_row and pending_row.get('mobile'):
+                send_welcome_message(pending_row.get('mobile'), pending_row.get('name'))
         except Exception:
             app.logger.exception('Failed to send welcome message')
 
-        return jsonify({'status': 'approved', 'member_id': member_data['id']})
-    except Exception:
+        return jsonify({'status': 'success', 'member_id': member_id})
+    except Exception as e:
         app.logger.exception('approve_member failed')
-        return jsonify({'error': 'internal'}), 500
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/generate_id')
 def generate_id():
