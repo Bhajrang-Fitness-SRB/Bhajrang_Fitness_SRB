@@ -70,11 +70,23 @@ def index():
 def admin_portal():
     return render_template('index.html')
 
+@app.route(DESK_PORTAL_URL)
+def desk_portal():
+    # Same admin dashboard as ADMIN_PORTAL_URL for now — no separate desk-only
+    # view exists yet. Both point here so the URL your team already uses works.
+    return render_template('index.html')
+
+@app.route(STAFF_PORTAL_URL)
+def staff_portal():
+    # Same admin dashboard for now — build a trimmed staff-only view later if
+    # you want staff to see less than a full admin (e.g. no Finance/Growth tabs).
+    return render_template('index.html')
+
 @app.route('/kiosk')
 def kiosk():
     return render_template('kiosk.html')
 
-@app.route('/warrior')
+@app.route(STUDENT_PORTAL_URL)
 def warrior():
     return render_template('member_app.html')
 
@@ -82,11 +94,64 @@ def warrior():
 def register():
     return render_template('registration_form.html')
 
+
+@app.route('/api/registration_sync', methods=['POST'])
+def registration_sync():
+    """Receives a new registration from registration_form.html and inserts it into
+    pending_approvals for staff to review on the Approvals tab. This route previously
+    did not exist at all — the registration form has never actually reached the database."""
+    data = request.json or {}
+
+    name = (data.get('name') or '').strip()
+    phone = (data.get('phone') or '').strip()
+    face_image = data.get('face_image') or ''
+
+    if not name or not phone or not face_image:
+        return jsonify({'status': 'error', 'message': 'Name, phone, and face photo are required.'}), 400
+
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'supabase_not_configured'}), 500
+
+    row = {
+        'name': name,
+        'mobile': phone,
+        'email': (data.get('email') or '').strip() or None,
+        'dob': data.get('dob') or None,
+        'address': (data.get('address') or '').strip() or None,
+        'photo_base64': face_image,
+        'father_name': (data.get('fname') or '').strip() or None,
+        'gender': data.get('gender') or None,
+        'blood_group': data.get('blood_group') or None,
+        'govt_id': (data.get('govt_id') or '').strip() or None,
+        'occupation': (data.get('occupation') or '').strip() or None,
+        'marital_status': data.get('marital_status') or None,
+        'whatsapp': (data.get('whatsapp') or '').strip() or None,
+        'city': (data.get('city') or '').strip() or None,
+        'state': (data.get('state') or '').strip() or None,
+        'pin': (data.get('pin') or '').strip() or None,
+        'gym_experience_years': data.get('gym_exp') or None,
+        'status': 'PENDING'
+    }
+
+    try:
+        client.table('pending_approvals').insert(row).execute()
+        try:
+            from _03_Automation_Bots.whatsapp_telegram_bot import send_telegram_alert
+            send_telegram_alert(f"New registration: {name} ({phone})", alert_type="NEW_MEMBER")
+        except Exception:
+            app.logger.exception('Failed to send new-registration alert')
+        return jsonify({'status': 'success', 'message': 'Registration received — pending approval.'})
+    except Exception:
+        app.logger.exception('registration_sync failed')
+        return jsonify({'status': 'error', 'message': 'Failed to save registration. Please try again.'}), 500
+
+
 @app.route('/api/telemetry')
 def telemetry():
     # In real implementation, fetch from Supabase when available
     try:
-        client = supabase or get_supabase_client()
+        client = ADMIN_SUPABASE or supabase or get_supabase_client()
         if client:
             try:
                 total_members_resp = client.table('members').select('id').execute()
@@ -113,7 +178,7 @@ def telemetry():
 @app.route('/api/members')
 def members():
     # Prefer live data when Supabase is configured, otherwise return sample data
-    client = supabase or get_supabase_client()
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if client:
         try:
             resp = client.table('members').select('*').execute()
@@ -133,7 +198,7 @@ def pending():
     This endpoint logs errors and returns sample data when Supabase is not configured
     or when an error occurs, to avoid crashing the web UI.
     """
-    client = supabase or get_supabase_client()
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if not client:
         app.logger.info('Supabase not configured; returning SAMPLE_PENDING')
         return jsonify(SAMPLE_PENDING)
@@ -150,7 +215,7 @@ def pending():
 
 @app.route('/api/finance')
 def finance():
-    client = supabase or get_supabase_client()
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if client:
         try:
             resp = client.table('billing').select('amount').execute()
@@ -192,7 +257,7 @@ def master_sync():
     Returns the exact shape the frontend expects:
     { status, dashboard: { total_members, today_attendance, today_revenue, pending_count, net_profit }, pending_records: [...] }
     """
-    client = supabase or get_supabase_client()
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if not client:
         app.logger.info('master_sync: Supabase not configured; returning sample data')
         return jsonify({
@@ -344,7 +409,7 @@ def generate_invoice():
     member_id = data.get('member_id') or (data.get('member_data') or {}).get('member_id')
     amount = float(data.get('amount') or 0)
     discount = float(data.get('discount') or 0)
-    upi_id = os.getenv('GYM_UPI_ID', '')
+    upi_id = os.getenv('UPI_ID', '')
 
     if not member_id:
         return jsonify({'status': 'error', 'message': 'missing_member_id'}), 400
@@ -377,7 +442,7 @@ def member_login():
     if not validate_credentials(member_id, passcode):
         return jsonify({'status': 'error', 'message': 'Invalid Warrior ID or Passcode'}), 401
 
-    client = supabase or get_supabase_client()
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if not client:
         return jsonify({'status': 'error', 'message': 'supabase_not_configured'}), 500
 
@@ -449,7 +514,7 @@ def growth_insights():
     """Data-driven business suggestions for the admin, grounded in your real numbers
     (not generic hype) — pulls actual revenue/expense/member trends from Supabase and
     asks the AI to suggest concrete, realistic next actions."""
-    client = supabase or get_supabase_client()
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if not client:
         return jsonify({'status': 'error', 'message': 'supabase_not_configured'}), 500
 
