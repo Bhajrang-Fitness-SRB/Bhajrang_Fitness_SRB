@@ -3,7 +3,7 @@ python-dotenv==1.0.0
 supabase==2.4.0
 pybase64==1.2.3
 qrcode==7.4.2
-Pillow==10.0.1
+Pillow
 requests==2.31.0
 cloudinary==1.36.0
 twilio==8.10.0
