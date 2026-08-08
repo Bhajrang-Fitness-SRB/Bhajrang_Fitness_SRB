@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request, send_file
 import os
+import logging
 from dotenv import load_dotenv, find_dotenv
 from supabase import create_client
 import pybase64
@@ -41,7 +42,10 @@ if SUPABASE_SERVICE_ROLE_KEY:
         from supabase import create_client as _create_client
         ADMIN_SUPABASE = _create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     except Exception:
+        logging.exception("Failed to create ADMIN_SUPABASE client with SUPABASE_SERVICE_ROLE_KEY — check the key and Render logs.")
         ADMIN_SUPABASE = None
+else:
+    logging.warning("SUPABASE_SERVICE_ROLE_KEY not set — ADMIN_SUPABASE unavailable, routes will fall back to the anon key client.")
 
 # Sample data for demonstration / fallback
 SAMPLE_MEMBERS = [
@@ -92,6 +96,12 @@ def warrior():
 
 @app.route('/register')
 def register():
+    return render_template('registration_form.html')
+
+@app.route('/enroll')
+def enroll():
+    # "Kiosk Enlistment" button in the sidebar opens this in a new tab — same
+    # registration form as /register, since no separate kiosk-enrollment page exists.
     return render_template('registration_form.html')
 
 
@@ -190,6 +200,27 @@ def members():
             app.logger.exception('Supabase members read failed')
             return jsonify(SAMPLE_MEMBERS)
     return jsonify(SAMPLE_MEMBERS)
+
+
+@app.route('/api/get_all_members')
+def get_all_members():
+    """Same member data as /api/members, but wrapped in the {status, members} shape
+    that the Cloud Database tab's fetchDirectory() actually expects. That route was
+    calling a URL that was never built at all — this is the real, matching one."""
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'success', 'members': SAMPLE_MEMBERS})
+    try:
+        # Matches the exact query shape already proven working in /api/members —
+        # no .order() here, since the frontend already reverses the list itself.
+        resp = client.table('members').select('*').execute()
+        return jsonify({'status': 'success', 'members': resp.data or []})
+    except Exception as e:
+        app.logger.exception('get_all_members failed')
+        # TEMPORARY: surfacing the real error message directly in the response so it's
+        # visible in browser DevTools without needing Render log access. Remove the
+        # 'debug' field once this is confirmed working.
+        return jsonify({'status': 'error', 'message': 'fetch_failed', 'debug': str(e), 'members': []}), 500
 
 @app.route('/api/pending')
 def pending():
@@ -417,6 +448,105 @@ def generate_invoice():
     inv_no, pdf_url = generate_invoice_pdf(member_id, amount, discount, upi_id=upi_id)
     pdf_path = os.path.join(BASE_DIR, pdf_url.lstrip('/'))
     return send_file(pdf_path, as_attachment=True, download_name=f"{inv_no}.pdf")
+
+@app.route('/api/get_all_members')
+def get_all_members():
+    """Powers the Cloud Database directory tab in index.html."""
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'supabase_not_configured'}), 500
+    try:
+        rows = client.table('members').select('member_id,name,phone,package,joining_date').order('joining_date', desc=True).execute().data or []
+        return jsonify({'status': 'success', 'members': rows})
+    except Exception:
+        app.logger.exception('get_all_members failed')
+        return jsonify({'status': 'error', 'message': 'fetch_failed'}), 500
+
+
+@app.route('/api/add_expense', methods=['POST'])
+def add_expense():
+    """Powers the expense entry form in index.html Finance tab."""
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    try:
+        amount = int(float(data.get('amount') or 0))
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'invalid_amount'}), 400
+
+    if not name or amount <= 0:
+        return jsonify({'status': 'error', 'message': 'Name and a positive amount are required.'}), 400
+
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'supabase_not_configured'}), 500
+    try:
+        client.table('expenses').insert({
+            'expense_name': name,
+            'amount': amount,
+            'expense_date': datetime.utcnow().date().isoformat()
+        }).execute()
+        return jsonify({'status': 'success'})
+    except Exception:
+        app.logger.exception('add_expense failed')
+        return jsonify({'status': 'error', 'message': 'insert_failed'}), 500
+
+
+@app.route('/api/punch_kiosk', methods=['POST'])
+def punch_kiosk():
+    """Powers the Kiosk attendance scanner. Toggles check-in/check-out based on
+    whether the member already has an open (no check-out yet) session today."""
+    data = request.json or {}
+    member_id = str(data.get('member_id') or '').strip().upper()
+    if not member_id:
+        return jsonify({'status': 'error', 'message': 'No Warrior ID provided.'}), 400
+
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'System offline — try again shortly.'}), 500
+
+    try:
+        member_rows = client.table('members').select('*').eq('member_id', member_id).limit(1).execute().data
+        if not member_rows:
+            return jsonify({'status': 'error', 'message': 'Warrior ID not found. Please register at the front desk.'})
+        member = member_rows[0]
+
+        expiry = member.get('expiry_date')
+        if expiry and str(expiry)[:10] < datetime.utcnow().date().isoformat():
+            return jsonify({'status': 'error', 'message': 'Membership Expired — please see the front desk.'})
+
+        open_session = (client.table('attendance_logs').select('id')
+                         .eq('member_id', member_id).is_('punch_out_time', 'null')
+                         .order('punch_in_time', desc=True).limit(1).execute().data)
+
+        name = member.get('name', 'Warrior')
+        if open_session:
+            client.table('attendance_logs').update({
+                'punch_out_time': datetime.utcnow().isoformat(),
+                'status': 'CHECK-OUT'
+            }).eq('id', open_session[0]['id']).execute()
+            message = f"Goodbye {name}, great session today!"
+            punch_status = "CHECK-OUT"
+        else:
+            client.table('attendance_logs').insert({
+                'member_id': member_id,
+                'punch_in_time': datetime.utcnow().isoformat(),
+                'status': 'CHECK-IN'
+            }).execute()
+            message = f"Welcome {name}, Crush your limits!"
+            punch_status = "CHECK-IN"
+
+        try:
+            from _03_Automation_Bots.whatsapp_telegram_bot import send_attendance_whatsapp
+            if member.get('phone'):
+                send_attendance_whatsapp(member.get('phone'), name, punch_status)
+        except Exception:
+            app.logger.exception('Failed to send attendance WhatsApp')
+
+        return jsonify({'status': 'success', 'name': name, 'pic': member.get('profile_pic'), 'message': message})
+    except Exception:
+        app.logger.exception('punch_kiosk failed')
+        return jsonify({'status': 'error', 'message': 'System error — try again.'}), 500
+
 
 @app.route('/api/ai_marketing')
 def ai_marketing():

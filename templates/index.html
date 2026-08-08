@@ -333,8 +333,8 @@
                             <td>${m.package || 'N/A'}</td>
                             <td>${m.joining_date}</td>
                         </tr>`).join('');
-                } else { tbody.innerHTML = `<tr><td colspan="4" style="color:red;">Error fetching data.</td></tr>`; }
-            } catch (e) { tbody.innerHTML = `<tr><td colspan="4" style="color:red;">Connection Error.</td></tr>`; }
+                } else { tbody.innerHTML = `<tr><td colspan="4" style="color:red;">Error: ${data.message || 'unknown'}${data.debug ? ' — ' + data.debug : ''}</td></tr>`; }
+            } catch (e) { tbody.innerHTML = `<tr><td colspan="4" style="color:red;">Connection Error: ${e.message}</td></tr>`; }
         }
 
         function filterDirectory() {
