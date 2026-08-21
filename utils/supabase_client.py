@@ -1,44 +1,27 @@
 import os
 import logging
-from dotenv import load_dotenv, find_dotenv
+from supabase import create_client, Client
 
-logger = logging.getLogger("SupabaseClient")
+logger = logging.getLogger("supabase_client")
 
-try:
-    from supabase import create_client
-except Exception:
-    logger.exception("Failed to import the 'supabase' package — check requirements.txt and Render's build logs for an install error.")
-    create_client = None
+_supabase_client: Client | None = None
 
-# Load environment variables (if present)
-dotenv_path = find_dotenv('master_vault.env') or find_dotenv()
-if dotenv_path:
-    load_dotenv(dotenv_path)
+def get_supabase_client() -> Client | None:
+    """Returns a singleton Supabase client instance using standard environment variables."""
+    global _supabase_client
+    if _supabase_client is not None:
+        return _supabase_client
 
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
 
-def get_supabase_client():
-    """Return a Supabase client if SUPABASE_URL and SUPABASE_KEY are configured, else None.
-
-    This helper centralizes client creation and avoids import-time crashes when
-    environment variables are missing or the supabase library is not installed.
-    Any failure is logged (not silently swallowed) so the real cause shows up in
-    Render's Logs tab instead of a generic "supabase_not_configured" error.
-    """
-    url = os.getenv('SUPABASE_URL')
-    key = os.getenv('SUPABASE_KEY')
-
-    if create_client is None:
-        logger.error("Supabase client unavailable — the 'supabase' package failed to import at startup.")
-        return None
-    if not url:
-        logger.error("SUPABASE_URL is not set in the environment.")
-        return None
-    if not key:
-        logger.error("SUPABASE_KEY is not set in the environment.")
+    if not url or not key:
+        logger.warning("SUPABASE_URL or SUPABASE_KEY missing in environment.")
         return None
 
     try:
-        return create_client(url, key)
-    except Exception:
-        logger.exception("create_client(url, key) raised an exception — SUPABASE_URL/SUPABASE_KEY may be malformed.")
+        _supabase_client = create_client(url, key)
+        return _supabase_client
+    except Exception as e:
+        logger.exception(f"Failed to initialize Supabase client: {e}")
         return None
