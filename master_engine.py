@@ -51,7 +51,7 @@ SAMPLE_MEMBERS = [
 SAMPLE_FINANCE = {"total_revenue": 15000, "total_expenses": 8000, "net_profit": 7000}
 SAMPLE_PENDING = [{"id": "RBF26050004", "name": "Alice Brown", "status": "Pending", "phone": "9876543213"}]
 
-# Helper to safely parse floats
+# Helper to safely parse frontend numbers
 def safe_float(val, default=0.0):
     try:
         if val is None or str(val).strip() == "":
@@ -59,6 +59,41 @@ def safe_float(val, default=0.0):
         return float(val)
     except (ValueError, TypeError):
         return default
+
+@app.route('/api/get_all_members')
+def get_all_members():
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'Database offline'}), 500
+    try:
+        resp = client.table('members').select('member_id,name,phone,package,joining_date').order('joining_date', desc=True).execute()
+        return jsonify({'status': 'success', 'members': resp.data or []})
+    except Exception as e:
+        app.logger.exception('get_all_members failed')
+        # Removed the 'debug': str(e) payload to secure production data
+        return jsonify({'status': 'error', 'message': 'fetch_failed', 'members': []}), 500
+
+@app.route('/api/generate_invoice', methods=['POST'])
+def generate_invoice():
+    from _01_Core_Engines.billing_invoice_gateway import generate_invoice_pdf, BASE_DIR
+    data = request.json or {}
+    member_id = data.get('member_id') or (data.get('member_data') or {}).get('member_id')
+    
+    # Safely convert potential empty strings to floats
+    amount = safe_float(data.get('amount'))
+    discount = safe_float(data.get('discount'))
+    upi_id = os.getenv('UPI_ID', '')
+
+    if not member_id:
+        return jsonify({'status': 'error', 'message': 'missing_member_id'}), 400
+
+    try:
+        inv_no, pdf_url = generate_invoice_pdf(member_id, amount, discount, upi_id=upi_id)
+        pdf_path = os.path.join(BASE_DIR, pdf_url.lstrip('/'))
+        return send_file(pdf_path, as_attachment=True, download_name=f"{inv_no}.pdf")
+    except Exception as e:
+        app.logger.exception('generate_invoice failed')
+        return jsonify({'status': 'error', 'message': 'Invoice generation failed.'}), 500
 
 # --- HTML Routes ---
 
