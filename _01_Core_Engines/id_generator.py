@@ -1,24 +1,25 @@
 import random
+import re
 from datetime import datetime
 
-def generate_unique_id():
+def generate_unique_id() -> str:
     """
-    Generates unique Warrior ID in format: RBF2605XXXX
-    Where XXXX is a random 4-digit number
+    Generates a unique Warrior ID in format: RBF<YY><MM><XXXX>
+    Example: RBF26081234
     """
-    year = datetime.now().strftime("%y")  # Last 2 digits of year
-    month = datetime.now().strftime("%m")  # Month as number
-    random_digits = str(random.randint(1000, 9999))  # 4 random digits
+    now = datetime.now()
+    year_str = now.strftime("%y")
+    month_str = now.strftime("%m")
+    random_digits = f"{random.randint(1000, 9999)}"
     
-    warrior_id = f"RBF{year}{month}{random_digits}"
-    return warrior_id
+    return f"RBF{year_str}{month_str}{random_digits}"
 
-def validate_id_format(warrior_id):
+def validate_id_format(warrior_id: str) -> bool:
     """
-    Validates if the ID follows the correct format
+    Validates if the provided ID matches RBF + 2-digit year + 2-digit month + 4 digits.
     """
-    if not warrior_id.startswith("RBF"):
+    if not warrior_id or not isinstance(warrior_id, str):
         return False
-    if len(warrior_id) != 12:  # RBF + 2 year + 2 month + 4 digits
-        return False
-    return True
+    
+    pattern = r"^RBF\d{2}(0[1-9]|1[0-2])\d{4}$"
+    return bool(re.match(pattern, warrior_id.strip().upper()))
