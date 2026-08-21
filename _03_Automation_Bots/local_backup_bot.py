@@ -1,76 +1,62 @@
-r"""
-Run this file locally on your PC to back up member photos/signatures
-from Supabase to a local folder.
-
-Setup (one-time):
-  1. pip install supabase python-dotenv
-  2. Create a file named `local_backup.env` in this same folder with:
-       SUPABASE_URL=https://qcabkhhbcdjyefbwzexj.supabase.co
-       SUPABASE_KEY=your-service-or-anon-key-here
-       BACKUP_DIR=C:\Bhajrang_Local_Vault      (optional, has a default)
-
-Run:
-  python local_backup_bot.py
-"""
 import os
 import base64
-import datetime
+import logging
+from datetime import datetime
 from supabase import create_client
 from dotenv import load_dotenv
 
 load_dotenv("local_backup.env")
 
+logger = logging.getLogger("local_backup")
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 SUPA_URL = os.getenv("SUPABASE_URL")
 SUPA_KEY = os.getenv("SUPABASE_KEY")
-
-if not SUPA_URL or not SUPA_KEY:
-    raise SystemExit(
-        "❌ Missing credentials. Create a 'local_backup.env' file next to this script "
-        "with SUPABASE_URL and SUPABASE_KEY set (see the instructions at the top of this file)."
-    )
-
-supabase = create_client(SUPA_URL, SUPA_KEY)
 
 BACKUP_DIR = os.getenv("BACKUP_DIR", os.path.join(os.path.expanduser("~"), "Bhajrang_Local_Vault"))
 SELFIE_DIR = os.path.join(BACKUP_DIR, "selfies")
 SIGNATURE_DIR = os.path.join(BACKUP_DIR, "signatures")
-os.makedirs(SELFIE_DIR, exist_ok=True)
-os.makedirs(SIGNATURE_DIR, exist_ok=True)
 
-
-def save_base64_image(b64_string, out_path):
-    """Decodes a base64 image string (with or without a data: URI prefix) and writes it to disk."""
+def save_base64_image(b64_string: str, out_path: str) -> bool:
+    """Decodes base64 strings and saves image files to local storage."""
     if not b64_string:
         return False
     try:
-        if "," in b64_string and b64_string.strip().startswith("data:"):
+        if "," in b64_string and "base64" in b64_string:
             b64_string = b64_string.split(",", 1)[1]
         with open(out_path, "wb") as f:
             f.write(base64.b64decode(b64_string))
         return True
     except Exception as e:
-        print(f"   ⚠️ Could not decode/save image: {e}")
+        logger.warning(f"Could not decode base64 file for {out_path}: {e}")
         return False
 
+def run_backup():
+    if not SUPA_URL or not SUPA_KEY:
+        logger.error("Missing SUPABASE_URL or SUPABASE_KEY in local_backup.env")
+        return
 
-def main():
-    print(f"Starting Local Sync → backing up into: {BACKUP_DIR}")
+    os.makedirs(SELFIE_DIR, exist_ok=True)
+    os.makedirs(SIGNATURE_DIR, exist_ok=True)
+    logger.info(f"Starting local backup to: {BACKUP_DIR}")
 
-    # Field names matched to the real schema used in master_engine.py:
-    # status is stored uppercase as "APPROVED", and the assigned member ID
-    # is stored in `original_frozen_id`, not `assigned_id`.
-    res = supabase.table('pending_approvals').select('*').eq('status', 'APPROVED').execute()
+    try:
+        supabase = create_client(SUPA_URL, SUPA_KEY)
+        res = supabase.table('pending_approvals').select('*').eq('status', 'APPROVED').execute()
+        records = res.data or []
+    except Exception as e:
+        logger.exception(f"Failed to fetch approved members for backup: {e}")
+        return
 
-    if not res.data:
-        print("No approved records found to back up.")
+    if not records:
+        logger.info("No approved member records to backup.")
         return
 
     backed_up = 0
-    for record in res.data:
+    for record in records:
         mem_id = record.get('original_frozen_id') or f"unassigned_{record.get('id')}"
-        name = record.get('name', 'Unknown')
-        print(f"Backing up data for {mem_id} ({name})...")
-
+        
         selfie_saved = save_base64_image(
             record.get('photo_base64'),
             os.path.join(SELFIE_DIR, f"{mem_id}.jpg")
@@ -83,9 +69,7 @@ def main():
         if selfie_saved or sig_saved:
             backed_up += 1
 
-    print(f"✅ Local Backup Complete! {backed_up}/{len(res.data)} records backed up to {BACKUP_DIR}")
-    print(f"   Finished at {datetime.datetime.now().isoformat()}")
-
+    logger.info(f"✅ Local backup complete: {backed_up}/{len(records)} records synced.")
 
 if __name__ == "__main__":
-    main()
+    run_backup()
