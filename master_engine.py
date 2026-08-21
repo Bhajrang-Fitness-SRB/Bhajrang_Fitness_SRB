@@ -449,19 +449,6 @@ def generate_invoice():
     pdf_path = os.path.join(BASE_DIR, pdf_url.lstrip('/'))
     return send_file(pdf_path, as_attachment=True, download_name=f"{inv_no}.pdf")
 
-@app.route('/api/get_all_members')
-def get_all_members():
-    """Powers the Cloud Database directory tab in index.html."""
-    client = ADMIN_SUPABASE or supabase or get_supabase_client()
-    if not client:
-        return jsonify({'status': 'error', 'message': 'supabase_not_configured'}), 500
-    try:
-        rows = client.table('members').select('member_id,name,phone,package,joining_date').order('joining_date', desc=True).execute().data or []
-        return jsonify({'status': 'success', 'members': rows})
-    except Exception:
-        app.logger.exception('get_all_members failed')
-        return jsonify({'status': 'error', 'message': 'fetch_failed'}), 500
-
 
 @app.route('/api/add_expense', methods=['POST'])
 def add_expense():
