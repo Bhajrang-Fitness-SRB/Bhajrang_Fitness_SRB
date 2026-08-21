@@ -6,7 +6,6 @@ import pybase64
 import qrcode
 import io
 from datetime import datetime
-import traceback
 
 # Load environment variables
 dotenv_path = find_dotenv('master_vault.env') or find_dotenv()
@@ -16,7 +15,6 @@ if dotenv_path:
 # Initialize Flask app
 app = Flask(__name__)
 
-# Configure Logging
 if not app.logger.handlers:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -29,7 +27,7 @@ DESK_PORTAL_URL = os.getenv("DESK_PORTAL_URL", "/administration")
 STAFF_PORTAL_URL = os.getenv("STAFF_PORTAL_URL", "/commander")
 STUDENT_PORTAL_URL = os.getenv("STUDENT_PORTAL_URL", "/warrior")
 
-# Initialize Database Clients
+# Use helper to create supabase client
 from utils.supabase_client import get_supabase_client
 supabase = get_supabase_client()
 
@@ -41,9 +39,9 @@ if SUPABASE_SERVICE_ROLE_KEY:
     except Exception:
         app.logger.exception("Failed to create ADMIN_SUPABASE client.")
 else:
-    app.logger.warning("SUPABASE_SERVICE_ROLE_KEY not set — using anon client.")
+    app.logger.warning("SUPABASE_SERVICE_ROLE_KEY not set — falling back to anon client.")
 
-# Fallback Sample Data[span_12](start_span)[span_12](end_span)
+# Fallback Data
 SAMPLE_MEMBERS = [
     {"id": "RBF26050001", "name": "John Doe", "package": "Gold", "status": "Active", "phone": "9876543210"},
     {"id": "RBF26050002", "name": "Jane Smith", "package": "Platinum", "status": "Active", "phone": "9876543211"}
@@ -51,7 +49,9 @@ SAMPLE_MEMBERS = [
 SAMPLE_FINANCE = {"total_revenue": 15000, "total_expenses": 8000, "net_profit": 7000}
 SAMPLE_PENDING = [{"id": "RBF26050004", "name": "Alice Brown", "status": "Pending", "phone": "9876543213"}]
 
-# Helper to safely parse frontend numbers
+# ==========================================
+# UTILITY HELPERS (CRASH PREVENTION)
+# ==========================================
 def safe_float(val, default=0.0):
     try:
         if val is None or str(val).strip() == "":
@@ -60,43 +60,17 @@ def safe_float(val, default=0.0):
     except (ValueError, TypeError):
         return default
 
-@app.route('/api/get_all_members')
-def get_all_members():
-    client = ADMIN_SUPABASE or supabase or get_supabase_client()
-    if not client:
-        return jsonify({'status': 'error', 'message': 'Database offline'}), 500
+def safe_int(val, default=0):
     try:
-        resp = client.table('members').select('member_id,name,phone,package,joining_date').order('joining_date', desc=True).execute()
-        return jsonify({'status': 'success', 'members': resp.data or []})
-    except Exception as e:
-        app.logger.exception('get_all_members failed')
-        # Removed the 'debug': str(e) payload to secure production data
-        return jsonify({'status': 'error', 'message': 'fetch_failed', 'members': []}), 500
+        if val is None or str(val).strip() == "":
+            return default
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
 
-@app.route('/api/generate_invoice', methods=['POST'])
-def generate_invoice():
-    from _01_Core_Engines.billing_invoice_gateway import generate_invoice_pdf, BASE_DIR
-    data = request.json or {}
-    member_id = data.get('member_id') or (data.get('member_data') or {}).get('member_id')
-    
-    # Safely convert potential empty strings to floats
-    amount = safe_float(data.get('amount'))
-    discount = safe_float(data.get('discount'))
-    upi_id = os.getenv('UPI_ID', '')
-
-    if not member_id:
-        return jsonify({'status': 'error', 'message': 'missing_member_id'}), 400
-
-    try:
-        inv_no, pdf_url = generate_invoice_pdf(member_id, amount, discount, upi_id=upi_id)
-        pdf_path = os.path.join(BASE_DIR, pdf_url.lstrip('/'))
-        return send_file(pdf_path, as_attachment=True, download_name=f"{inv_no}.pdf")
-    except Exception as e:
-        app.logger.exception('generate_invoice failed')
-        return jsonify({'status': 'error', 'message': 'Invoice generation failed.'}), 500
-
-# --- HTML Routes ---
-
+# ==========================================
+# HTML ROUTES
+# ==========================================
 @app.route('/')
 @app.route(ADMIN_PORTAL_URL)
 @app.route(DESK_PORTAL_URL)
@@ -122,8 +96,9 @@ def ghost_vault_portal():
     return render_template('ghost_vault.html')
 
 
-# --- API Routes ---
-
+# ==========================================
+# API ROUTES: REGISTRATION & MEMBERS
+# ==========================================
 @app.route('/api/registration_sync', methods=['POST'])
 def registration_sync():
     data = request.json or {}
@@ -132,19 +107,29 @@ def registration_sync():
     face_image = data.get('face_image') or ''
 
     if not name or not phone or not face_image:
-        return jsonify({'status': 'error', 'message': 'Name, phone, and face photo are required.'}), 400
+        return jsonify({'status': 'error', 'message': 'Name, phone, and face photo required.'}), 400
 
     client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if not client:
         return jsonify({'status': 'error', 'message': 'Database offline'}), 500
 
     row = {
-        'name': name,
-        'mobile': phone,
+        'name': name, 'mobile': phone,
         'email': (data.get('email') or '').strip() or None,
         'dob': data.get('dob') or None,
         'address': (data.get('address') or '').strip() or None,
         'photo_base64': face_image,
+        'father_name': (data.get('fname') or '').strip() or None,
+        'gender': data.get('gender') or None,
+        'blood_group': data.get('blood_group') or None,
+        'govt_id': (data.get('govt_id') or '').strip() or None,
+        'occupation': (data.get('occupation') or '').strip() or None,
+        'marital_status': data.get('marital_status') or None,
+        'whatsapp': (data.get('whatsapp') or '').strip() or None,
+        'city': (data.get('city') or '').strip() or None,
+        'state': (data.get('state') or '').strip() or None,
+        'pin': (data.get('pin') or '').strip() or None,
+        'gym_experience_years': data.get('gym_exp') or None,
         'status': 'PENDING'
     }
 
@@ -155,46 +140,10 @@ def registration_sync():
             send_telegram_alert(f"New registration: {name} ({phone})", alert_type="NEW_MEMBER")
         except Exception:
             app.logger.exception('Failed to send new-registration alert')
-            
         return jsonify({'status': 'success', 'message': 'Registration received — pending approval.'})
     except Exception:
         app.logger.exception('Registration sync failed')
         return jsonify({'status': 'error', 'message': 'Failed to save registration.'}), 500
-
-
-@app.route('/api/telemetry')
-def telemetry():
-    try:
-        client = ADMIN_SUPABASE or supabase or get_supabase_client()
-        total_members = len(SAMPLE_MEMBERS)
-        if client:
-            try:
-                resp = client.table('members').select('id').execute()
-                total_members = len(resp.data or [])
-            except Exception:
-                pass
-
-        return jsonify({
-            "total_members": total_members,
-            "today_revenue": SAMPLE_FINANCE["total_revenue"],
-            "active_attendance": 12,
-            "pending_requests": len(SAMPLE_PENDING)
-        })
-    except Exception:
-        return jsonify({'error': 'internal'}), 500
-
-
-@app.route('/api/members')
-def members():
-    client = ADMIN_SUPABASE or supabase or get_supabase_client()
-    if client:
-        try:
-            resp = client.table('members').select('*').execute()
-            return jsonify(resp.data or [])
-        except Exception:
-            app.logger.exception('Members read failed')
-    return jsonify(SAMPLE_MEMBERS)
-
 
 @app.route('/api/get_all_members')
 def get_all_members():
@@ -204,11 +153,9 @@ def get_all_members():
     try:
         resp = client.table('members').select('member_id,name,phone,package,joining_date').order('joining_date', desc=True).execute()
         return jsonify({'status': 'success', 'members': resp.data or []})
-    except Exception as e:
+    except Exception:
         app.logger.exception('get_all_members failed')
-        # Debug field removed for production security[span_13](start_span)[span_13](end_span)
         return jsonify({'status': 'error', 'message': 'fetch_failed', 'members': []}), 500
-
 
 @app.route('/api/pending')
 def pending():
@@ -219,10 +166,65 @@ def pending():
         resp = client.table('pending_approvals').select('*').order('created_at', desc=True).execute()
         return jsonify(resp.data or [])
     except Exception:
-        app.logger.exception('Pending approvals read failed')
+        app.logger.exception('Pending read failed')
         return jsonify(SAMPLE_PENDING)
 
+@app.route('/api/approve_member', methods=['POST'])
+def approve_member():
+    data = request.json or {}
+    req_id = data.get('req_id')
+    class_type = data.get('class_type', 'Single')
+    
+    amount = safe_float(data.get('amount'))
+    discount = safe_float(data.get('discount'))
+    paid = safe_float(data.get('paid'))
+    duration = safe_int(data.get('duration'), 1)
 
+    if not req_id:
+        return jsonify({'status': 'error', 'message': 'missing_req_id'}), 400
+
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'Database offline'}), 500
+
+    try:
+        rpc_resp = client.rpc('approve_member', {
+            'p_approval_id': int(req_id),
+            'p_package_name': class_type,
+            'p_amount': amount,
+            'p_package_months': duration,
+            'p_discount': discount,
+            'p_paid': paid
+        }).execute()
+
+        member_id = rpc_resp.data
+        if not member_id:
+            return jsonify({'status': 'error', 'message': 'approval_failed'}), 500
+
+        try:
+            from _03_Automation_Bots.whatsapp_telegram_bot import send_whatsapp_message
+            from _03_Automation_Bots.email_notifications import send_welcome_email
+            from _01_Core_Engines.ghost_vault_engine import generate_secret_passcode
+            
+            pending_row = (client.table('pending_approvals').select('name,mobile,email,dob').eq('id', req_id).limit(1).execute().data or [None])[0]
+            if pending_row:
+                passcode = generate_secret_passcode(pending_row.get('dob')) if pending_row.get('dob') else None
+                if pending_row.get('mobile'):
+                    send_whatsapp_message(pending_row.get('mobile'), pending_row.get('name'), member_id, passcode)
+                if pending_row.get('email'):
+                    send_welcome_email(pending_row.get('email'), pending_row.get('name'), member_id, passcode)
+        except Exception:
+            app.logger.exception('Failed to send welcome messages')
+
+        return jsonify({'status': 'success', 'member_id': member_id})
+    except Exception as e:
+        app.logger.exception('approve_member failed')
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ==========================================
+# API ROUTES: BILLING, FINANCE & INVENTORY
+# ==========================================
 @app.route('/api/master_sync')
 def master_sync():
     client = ADMIN_SUPABASE or supabase or get_supabase_client()
@@ -271,71 +273,11 @@ def master_sync():
         app.logger.exception('master_sync failed')
         return jsonify({'status': 'error', 'message': 'sync_failed'}), 500
 
-
-@app.route('/api/approve_member', methods=['POST'])
-def approve_member():
-    data = request.json or {}
-    req_id = data.get('req_id')
-    class_type = data.get('class_type', 'Single')
-    
-    amount = safe_float(data.get('amount'))
-    discount = safe_float(data.get('discount'))
-    paid = safe_float(data.get('paid'))
-    
-    try:
-        duration = int(data.get('duration') or 1)
-    except ValueError:
-        duration = 1
-
-    if not req_id:
-        return jsonify({'status': 'error', 'message': 'missing_req_id'}), 400
-
-    client = ADMIN_SUPABASE or supabase or get_supabase_client()
-    if not client:
-        return jsonify({'status': 'error', 'message': 'Database unavailable'}), 500
-
-    try:
-        rpc_resp = client.rpc('approve_member', {
-            'p_approval_id': int(req_id),
-            'p_package_name': class_type,
-            'p_amount': amount,
-            'p_package_months': duration,
-            'p_discount': discount,
-            'p_paid': paid
-        }).execute()
-
-        member_id = rpc_resp.data
-        if not member_id:
-            return jsonify({'status': 'error', 'message': 'approval_failed'}), 500
-
-        try:
-            from _03_Automation_Bots.whatsapp_telegram_bot import send_whatsapp_message
-            from _03_Automation_Bots.email_notifications import send_welcome_email
-            from _01_Core_Engines.ghost_vault_engine import generate_secret_passcode
-            
-            pending_row = (client.table('pending_approvals').select('name,mobile,email,dob').eq('id', req_id).limit(1).execute().data or [None])[0]
-            if pending_row:
-                passcode = generate_secret_passcode(pending_row.get('dob')) if pending_row.get('dob') else None
-                if pending_row.get('mobile'):
-                    send_whatsapp_message(pending_row.get('mobile'), pending_row.get('name'), member_id, passcode)
-                if pending_row.get('email'):
-                    send_welcome_email(pending_row.get('email'), pending_row.get('name'), member_id, passcode)
-        except Exception:
-            app.logger.exception('Failed to send welcome messages')
-
-        return jsonify({'status': 'success', 'member_id': member_id})
-    except Exception as e:
-        app.logger.exception('approve_member failed')
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
 @app.route('/api/generate_invoice', methods=['POST'])
 def generate_invoice():
     from _01_Core_Engines.billing_invoice_gateway import generate_invoice_pdf, BASE_DIR
     data = request.json or {}
     member_id = data.get('member_id') or (data.get('member_data') or {}).get('member_id')
-    
-    # Safely convert potential empty strings to floats[span_14](start_span)[span_14](end_span)
     amount = safe_float(data.get('amount'))
     discount = safe_float(data.get('discount'))
     upi_id = os.getenv('UPI_ID', '')
@@ -347,11 +289,50 @@ def generate_invoice():
         inv_no, pdf_url = generate_invoice_pdf(member_id, amount, discount, upi_id=upi_id)
         pdf_path = os.path.join(BASE_DIR, pdf_url.lstrip('/'))
         return send_file(pdf_path, as_attachment=True, download_name=f"{inv_no}.pdf")
-    except Exception as e:
+    except Exception:
         app.logger.exception('generate_invoice failed')
         return jsonify({'status': 'error', 'message': 'Invoice generation failed.'}), 500
 
+@app.route('/api/add_expense', methods=['POST'])
+def add_expense():
+    data = request.json or {}
+    name = (data.get('name') or '').strip()
+    amount = safe_float(data.get('amount'))
 
+    if not name or amount <= 0:
+        return jsonify({'status': 'error', 'message': 'Valid name and positive amount required.'}), 400
+
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'Database offline'}), 500
+    try:
+        client.table('expenses').insert({
+            'expense_name': name,
+            'amount': amount,
+            'expense_date': datetime.utcnow().date().isoformat()
+        }).execute()
+        return jsonify({'status': 'success'})
+    except Exception:
+        app.logger.exception('add_expense failed')
+        return jsonify({'status': 'error', 'message': 'insert_failed'}), 500
+
+# NEW: UNLOCKED INVENTORY FEATURE
+@app.route('/api/inventory', methods=['GET'])
+def get_inventory():
+    """Unlocks Product & Supplement fetching from the Dashboard."""
+    try:
+        from _01_Core_Engines.inventory_api import _get_client
+        client = _get_client()
+        resp = client.table('inventory').select('*').order('name').execute()
+        return jsonify({'status': 'success', 'inventory': resp.data or []})
+    except Exception as e:
+        app.logger.exception('Inventory fetch failed')
+        return jsonify({'status': 'error', 'message': 'Failed to fetch inventory'}), 500
+
+
+# ==========================================
+# API ROUTES: ATTENDANCE & KIOSK
+# ==========================================
 @app.route('/api/punch_kiosk', methods=['POST'])
 def punch_kiosk():
     data = request.json or {}
@@ -372,8 +353,7 @@ def punch_kiosk():
         expiry = member.get('expiry_date')
         
         if expiry:
-            # Safely check expiry date accounting for potential ISO Z timezone characters
-            clean_expiry = str(expiry)[:10]
+            clean_expiry = str(expiry)[:10].replace('Z', '')
             if clean_expiry < datetime.utcnow().date().isoformat():
                 return jsonify({'status': 'error', 'message': 'Membership Expired.'})
 
@@ -403,14 +383,33 @@ def punch_kiosk():
             if member.get('phone'):
                 send_attendance_whatsapp(member.get('phone'), name, punch_status)
         except Exception:
-            app.logger.exception('Failed to send attendance WhatsApp')
+            pass
 
         return jsonify({'status': 'success', 'name': name, 'message': message})
     except Exception:
         app.logger.exception('punch_kiosk failed')
         return jsonify({'status': 'error', 'message': 'System error.'}), 500
 
+# NEW: UNLOCKED ATTENDANCE AI ENGINE
+@app.route('/api/member_stats/<member_id>', methods=['GET'])
+def member_stats(member_id):
+    """Unlocks streak tracking and AI visit predictions for member profiles."""
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'Database offline'}), 500
+    try:
+        from _01_Core_Engines.attendance_engine import AttendanceEngine
+        engine = AttendanceEngine(client)
+        stats = engine.calculate_attendance_streak(member_id)
+        return jsonify({'status': 'success', 'stats': stats})
+    except Exception as e:
+        app.logger.exception(f'Failed to get stats for {member_id}')
+        return jsonify({'status': 'error', 'message': 'Failed to calculate stats'}), 500
 
+
+# ==========================================
+# API ROUTES: WARRIOR APP & AI ENGINES
+# ==========================================
 @app.route('/api/member_login', methods=['POST'])
 def member_login():
     from _01_Core_Engines.ghost_vault_engine import validate_credentials
@@ -418,10 +417,10 @@ def member_login():
     member_id = str(data.get('member_id') or '').strip().upper()
     passcode = str(data.get('passcode') or '').strip()
 
-    if not validate_credentials(member_id, passcode):
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not validate_credentials(member_id, passcode, client):
         return jsonify({'status': 'error', 'message': 'Invalid Warrior ID or Passcode'}), 401
 
-    client = ADMIN_SUPABASE or supabase or get_supabase_client()
     if not client:
         return jsonify({'status': 'error', 'message': 'Database offline'}), 500
 
@@ -440,7 +439,6 @@ def member_login():
     except Exception:
         app.logger.exception('member_login failed')
         return jsonify({'status': 'error', 'message': 'login_failed'}), 500
-
 
 @app.route('/api/get_warrior_plan', methods=['POST'])
 def get_warrior_plan():
@@ -467,7 +465,6 @@ def get_warrior_plan():
         app.logger.exception('get_warrior_plan failed')
         return jsonify({'status': 'error', 'message': 'plan_generation_failed'}), 500
 
-
 @app.route('/api/ai_master', methods=['POST'])
 def ai_master():
     data = request.json or {}
@@ -482,6 +479,49 @@ def ai_master():
     except Exception:
         app.logger.exception('ai_master failed')
         return jsonify({'response': '[ERROR] AI request failed.'}), 500
+
+@app.route('/api/growth_insights')
+def growth_insights():
+    client = ADMIN_SUPABASE or supabase or get_supabase_client()
+    if not client:
+        return jsonify({'status': 'error', 'message': 'Database offline'}), 500
+
+    try:
+        members = client.table('members').select('member_id,expiry_date').execute().data or []
+        billing = client.table('billing').select('amount,paid,due,payment_date').execute().data or []
+        expenses = client.table('expenses').select('amount,expense_date').execute().data or []
+
+        total_revenue = sum(safe_float(r.get('paid')) for r in billing)
+        total_due = sum(safe_float(r.get('due')) for r in billing)
+        total_expenses = sum(safe_float(r.get('amount')) for r in expenses)
+        
+        today = datetime.utcnow().date()
+        expiring_soon = [m for m in members if m.get('expiry_date') and
+                          0 <= (datetime.fromisoformat(str(m['expiry_date'])[:10].replace('Z','')).date() - today).days <= 7]
+
+        summary = (
+            f"Total members: {len(members)}. Total revenue collected: Rs.{total_revenue}. "
+            f"Total pending dues: Rs.{total_due}. Total expenses: Rs.{total_expenses}. "
+            f"Memberships expiring within 7 days: {len(expiring_soon)}."
+        )
+
+        from _02_AI_Master_Agents.ai_orchestrator import AIOrchestrator
+        prompt = (
+            f"You are a practical small-gym business advisor. Based on this real data — {summary} — "
+            f"give 4-5 concrete, realistic action items to improve retention, reduce dues, and grow "
+            f"revenue this month. No hype, no guarantees, just specific actionable steps a small gym "
+            f"owner in India could actually do this week."
+        )
+        insights = AIOrchestrator().generate_with_fallback(prompt)
+
+        return jsonify({
+            'status': 'success',
+            'summary': summary,
+            'insights': insights if isinstance(insights, str) else insights.get('message', 'AI offline.')
+        })
+    except Exception:
+        app.logger.exception('growth_insights failed')
+        return jsonify({'status': 'error', 'message': 'insights_failed'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=int(os.getenv("PORT", 5000)))
