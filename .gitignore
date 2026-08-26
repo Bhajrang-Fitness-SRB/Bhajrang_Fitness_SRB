@@ -1,17 +1,5 @@
-# Local secret vault (keep local only)
-master_vault.env
+node_modules
+dist
 .env
-
-# Python
-__pycache__/
-*.py[cod]
-
-# Python env
-venv/
-.env.local
-
-# Backups
-backups/
-
-# IDE
-.vscode/
+*.local
+.DS_Store
