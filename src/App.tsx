@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
 import { Activity, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Menu, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, UserCheck, UserPlus, Users, Wallet, X, Zap } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import jsQR from 'jsqr';
 import Papa from 'papaparse';
 import { supabase, type AttendanceLog, type Billing, type Inventory, type Member, type Package, type PendingApproval, type Staff } from './lib/supabase';
 
@@ -104,7 +105,7 @@ function Admin({ passcode, onLock, notify }: { passcode: string; onLock: () => v
    setPending(p=>p.filter(x=>x.id!==id));
    notify(`${item.name||'Warrior'} approved and vault created.`);pingTelegram(`✅ Approved: ${item.name||'Warrior'} — application #${id}.`);sendCloudEmail(item.email||'',item.name||'Warrior','Welcome to Bhajrang Fitness!',`Hi ${item.name||'there'},\n\nYour membership at Bhajrang Fitness has been approved. Log in at the Warrior app with your ID and passcode (sent separately) to see your gate pass, membership status, and more.\n\nSee you at the gym!\nTeam Bhajrang Fitness`);void load();return true
  };
- return <><Header/><button className="mobile-menu-btn" onClick={()=>setNavOpen(true)}><Menu size={18}/> Menu</button><div className="shell">{navOpen&&<div className="nav-backdrop" onClick={()=>setNavOpen(false)}/>}<aside className={navOpen?'sidebar open':'sidebar'}><button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button><div className="side-label">Reception desk</div><nav className="nav">{([['overview','Overview',LayoutDashboard],['attendance','Manual Attendance',UserCheck],['join','New Member / Join',UserPlus],['approvals','Approvals',Bell],['members','Warriors',Users],['reminders','Due & Birthday Reminders',Bell],['notices','Notices & Freeze',Bell],['billing','Billing',CreditCard],['expenses','Expenses',Wallet],['inventory','Store Inventory',Dumbbell],['diary','Diary',FileText],['flyers','Flyer Studio',Sparkles],['ai','Omni AI Hub',Sparkles]] as const).map(([key,label,Icon])=><button key={key} className={tab===key?'active':''} onClick={()=>selectTab(key)}><Icon size={16}/>{label}{key==='approvals'&&pending.length>0&&<span className="pill red" style={{marginLeft:'auto',padding:'3px 6px'}}>{pending.length}</span>}</button>)}</nav><div style={{marginTop:24,padding:'0 14px',display:'flex',flexDirection:'column',gap:8}}><a href="/villain" className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Skull size={13}/> Owner vault</a><button onClick={onLock} className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Lock size={13}/> Lock desk</button></div><div style={{marginTop:16,padding:'0 14px',color:'#607083',fontSize:11,lineHeight:1.6}}>Live sync active<br/><span style={{color:'#36d8d3'}}>Polling every 10 seconds</span></div><img src="/brand/team-badge.png" alt="RB Warriors" className="team-badge-mini" /></aside><main className="content">{tab==='overview'&&<Overview loading={loading} members={members} pending={pending} active={active} present={present} dueCount={dueCount} renewalsSoon={renewalsSoon} birthdaysSoon={birthdaysSoon} onApprovals={()=>selectTab('approvals')} onRefresh={load}/>} {tab==='attendance'&&<ManualAttendance members={members} attendance={attendance} notify={notify} onRefresh={load}/>} {tab==='join'&&<JoinMember passcode={passcode} notify={notify} onRefresh={load}/>} {tab==='approvals'&&<Approvals pending={pending} onApprove={finalizeApproval} approvingIds={approvingIds}/>} {tab==='members'&&<Members members={members} passcode={passcode} onRefresh={load} notify={notify}/>} {tab==='reminders'&&<Reminders members={members} billing={billing} notify={notify}/>} {tab==='notices'&&<NoticesDesk notify={notify}/>} {tab==='billing'&&<BillingView billing={billing} members={members} onRefresh={load}/>} {tab==='expenses'&&<Expenses expenses={expenses} onAdd={()=>setShowExpense(true)} onRefresh={load}/>} {tab==='inventory'&&<StoreInventory notify={notify}/>} {tab==='diary'&&<Diary notify={notify}/>} {tab==='flyers'&&<FlyerStudio/>} {tab==='ai'&&<AIHub members={members} notify={notify}/>}</main></div>{showExpense&&<ExpenseModal onClose={()=>setShowExpense(false)} onSaved={()=>{setShowExpense(false);notify('Expense logged.');void load()}}/>}</>;
+ return <><Header/><button className="mobile-menu-btn" onClick={()=>setNavOpen(true)}><Menu size={18}/> Menu</button><div className="shell">{navOpen&&<div className="nav-backdrop" onClick={()=>setNavOpen(false)}/>}<aside className={navOpen?'sidebar open':'sidebar'}><button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button><div className="side-label">Reception desk</div><nav className="nav">{([['overview','Overview',LayoutDashboard],['attendance','Manual Attendance',UserCheck],['join','New Member / Join',UserPlus],['approvals','Approvals',Bell],['members','Warriors',Users],['reminders','Due & Birthday Reminders',Bell],['notices','Notices & Freeze',Bell],['billing','Billing',CreditCard],['expenses','Expenses',Wallet],['inventory','Store Inventory',Dumbbell],['diary','Diary',FileText],['flyers','Flyer Studio',Sparkles],['ai','Omni AI Hub',Sparkles]] as const).map(([key,label,Icon])=><button key={key} className={tab===key?'active':''} onClick={()=>selectTab(key)}><Icon size={16}/>{label}{key==='approvals'&&pending.length>0&&<span className="pill red" style={{marginLeft:'auto',padding:'3px 6px'}}>{pending.length}</span>}</button>)}</nav><div style={{marginTop:24,padding:'0 14px',display:'flex',flexDirection:'column',gap:8}}><a href="/villain" className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Skull size={13}/> Owner vault</a><button onClick={onLock} className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Lock size={13}/> Lock desk</button></div><div style={{marginTop:16,padding:'0 14px',color:'#607083',fontSize:11,lineHeight:1.6}}>Live sync active<br/><span style={{color:'#36d8d3'}}>Polling every 10 seconds</span></div><img src="/brand/team-badge.png" alt="RB Warriors" className="team-badge-mini" /></aside><main className="content">{tab==='overview'&&<Overview loading={loading} members={members} pending={pending} active={active} present={present} dueCount={dueCount} renewalsSoon={renewalsSoon} birthdaysSoon={birthdaysSoon} onApprovals={()=>selectTab('approvals')} onRefresh={load}/>} {tab==='attendance'&&<ManualAttendance members={members} attendance={attendance} notify={notify} onRefresh={load}/>} {tab==='join'&&<JoinMember passcode={passcode} notify={notify} onRefresh={load}/>} {tab==='approvals'&&<Approvals pending={pending} onApprove={finalizeApproval} approvingIds={approvingIds}/>} {tab==='members'&&<Members members={members} passcode={passcode} onRefresh={load} notify={notify}/>} {tab==='reminders'&&<Reminders members={members} billing={billing} notify={notify}/>} {tab==='notices'&&<NoticesDesk notify={notify}/>} {tab==='billing'&&<BillingView billing={billing} members={members} onRefresh={load}/>} {tab==='expenses'&&<Expenses expenses={expenses} onAdd={()=>setShowExpense(true)} onRefresh={load}/>} {tab==='inventory'&&<StoreInventory notify={notify}/>} {tab==='diary'&&<Diary notify={notify}/>} {tab==='flyers'&&<FlyerStudio notify={notify}/>} {tab==='ai'&&<AIHub members={members} notify={notify}/>}</main></div>{showExpense&&<ExpenseModal onClose={()=>setShowExpense(false)} onSaved={()=>{setShowExpense(false);notify('Expense logged.');void load()}}/>}</>;
 }
 
 function Overview(p:{loading:boolean;members:Member[];pending:PendingApproval[];active:number;present:number;dueCount:number;renewalsSoon:number;birthdaysSoon:number;onApprovals:()=>void;onRefresh:()=>void}) { return <><div className="page-head"><div><p className="eyebrow">Reception desk</p><h1 className="title">Good morning.</h1><p className="sub">Today's floor at a glance — financial reports live in the owner vault.</p></div><button className="button" onClick={p.onRefresh}><RefreshCw size={15}/> Sync now</button></div><div className="grid stats"><Stat icon={Users} label="Total warriors" value={p.members.length} foot={`${p.active} active memberships`} color="var(--gold)"/><Stat icon={Activity} label="On floor now" value={p.present} foot="Live attendance" color="var(--cyan)"/><Stat icon={Bell} label="Pending review" value={p.pending.length} foot="Needs your attention" color="var(--red)"/><Stat icon={Clock3} label="Dues to collect" value={p.dueCount} foot="Members with balance" color="var(--gold)"/></div><div className="grid layout-2"><div className="card"><div className="card-title">Renewals due soon <span>Next 7 days</span></div><div className="stat-value" style={{color:'var(--cyan)'}}>{p.renewalsSoon}</div><div className="result-label">Check the Reminders tab to notify them</div></div><div className="card"><div className="card-title">Birthdays this week <span>Send wishes</span></div><div className="stat-value" style={{color:'var(--gold)'}}>{p.birthdaysSoon}</div><div className="result-label">Check the Reminders tab for ready-made messages</div></div></div>{p.pending.length>0&&<div className="card" style={{marginTop:20}}><div className="card-title">Verification queue <span>Action required</span></div>{p.pending.slice(0,4).map(x=><div className="activity-item" style={{marginBottom:16}} key={x.id}><div className="activity-icon" style={{color:'var(--gold)'}}><Clock3 size={15}/></div><div className="activity-copy"><b>{x.name||'Unnamed applicant'}</b><small>{x.mobile} · {x.created_at?new Date(x.created_at).toLocaleDateString():'Recently'}</small></div><span className="pill red" style={{marginLeft:'auto'}}>NEW</span></div>)}<button className="button ghost" onClick={p.onApprovals} style={{width:'100%',justifyContent:'center',marginTop:8}}>Review queue <ArrowRight size={14}/></button></div>}</>; }
@@ -305,6 +306,82 @@ function InstallAppBanner() {
   return null;
 }
 function Portal({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){const [memberId,setMemberId]=useState('');const [passcode,setPasscode]=useState('');const [member,setMember]=useState<Member|null>(null);const [loginError,setLoginError]=useState('');const login=async(e:FormEvent)=>{e.preventDefault();setLoginError('');const {data,error}=await supabase.rpc('verify_member_login',{p_member_id:memberId.trim(),p_passcode:passcode.trim()});const row=Array.isArray(data)?data[0]:data;if(error||!row){setLoginError('Warrior ID or passcode not recognised.');return}setMember(row as Member);};return <><Header onBack={onBack}/>{!member?<main className="portal-login"><div className="card"><p className="eyebrow">Warrior portal</p><h1 className="title">Enter the vault.</h1><p className="sub">Use the ID and secret passcode sent when your membership was approved.</p><InstallAppBanner/><form onSubmit={login} style={{marginTop:6}}><div className="field"><label>Warrior ID</label><input required value={memberId} onChange={e=>setMemberId(e.target.value.toUpperCase())} placeholder="e.g. SRB92900001"/></div><div className="field" style={{marginTop:14}}><label>Secret passcode</label><input required type="password" inputMode="numeric" maxLength={4} value={passcode} onChange={e=>setPasscode(e.target.value)} placeholder="4 digits"/></div>{loginError&&<p className="error" style={{fontSize:12}}>{loginError}</p>}<button className="button cyan" style={{width:'100%',justifyContent:'center',marginTop:20}}><LogIn size={15}/> Unlock my portal</button></form><a href="/join" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:14}}><UserPlus size={15}/> New here? Join Bhajrang Fitness</a></div></main>:<MemberPortal member={member} onLogout={()=>setMember(null)} notify={notify}/>}</>}
+
+const WATER_START_MIN = 8*60, WATER_END_MIN = 22*60, WATER_STEP_MIN = 30;
+function waterSlots(): string[] {
+  const out: string[] = [];
+  for (let m = WATER_START_MIN; m <= WATER_END_MIN; m += WATER_STEP_MIN) {
+    const h = Math.floor(m/60), mm = m%60;
+    out.push(`${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`);
+  }
+  return out;
+}
+function todayKey(prefix: string) { return `${prefix}_${new Date().toISOString().slice(0,10)}`; }
+
+function WaterTracker({weightKg,notify,storageKey}:{weightKg?:number|null;notify:(m:string)=>void;storageKey:string}){
+  const slots = waterSlots();
+  const [weight,setWeight] = useState<number>(weightKg ?? (()=>{ const s=localStorage.getItem(`${storageKey}_weight`); return s?Number(s):70; })());
+  const [enabled,setEnabled] = useState<boolean>(() => localStorage.getItem(`${storageKey}_enabled`) !== 'off');
+  const [done,setDone] = useState<Record<string,boolean>>(() => { try { return JSON.parse(localStorage.getItem(todayKey(storageKey)) || '{}'); } catch { return {}; } });
+
+  const targetMl = Math.round(weight * 700);
+  const perSlotMl = Math.round(targetMl / slots.length / 10) * 10;
+  const drunkMl = Object.values(done).filter(Boolean).length * perSlotMl;
+
+  useEffect(() => { localStorage.setItem(`${storageKey}_weight`, String(weight)); }, [weight, storageKey]);
+  useEffect(() => { localStorage.setItem(`${storageKey}_enabled`, enabled ? 'on' : 'off'); }, [enabled, storageKey]);
+  useEffect(() => { localStorage.setItem(todayKey(storageKey), JSON.stringify(done)); }, [done, storageKey]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') Notification.requestPermission();
+    const iv = setInterval(() => {
+      const now = new Date();
+      const cur = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+      if (!slots.includes(cur)) return;
+      const key = todayKey(storageKey);
+      let d: Record<string,boolean> = {};
+      try { d = JSON.parse(localStorage.getItem(key) || '{}'); } catch { /* ignore */ }
+      if (d[cur]) return; // already logged this slot
+      if (Notification.permission === 'granted') {
+        new Notification('💧 Water break — Bhajrang Fitness', { body: `Drink about ${perSlotMl}ml now to hit your daily ${(targetMl/1000).toFixed(1)}L goal.` });
+      } else {
+        notify(`Water reminder: drink ~${perSlotMl}ml now.`);
+      }
+    }, 60000);
+    return () => clearInterval(iv);
+  }, [enabled, slots, perSlotMl, targetMl, storageKey, notify]);
+
+  const toggleSlot = (t: string) => setDone(d => ({...d, [t]: !d[t]}));
+  const nowStr = (() => { const n=new Date(); return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; })();
+
+  return <div className="card">
+    <div className="card-title">Water goal tracker <span>0.7L per kg bodyweight, every 30 min · 8am–10pm</span></div>
+    <div style={{display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',marginBottom:14}}>
+      <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#9eb0c2'}}>
+        <input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Reminders on
+      </label>
+      {!weightKg && <div className="field" style={{gap:4}}>
+        <label>Weight (kg)</label>
+        <input type="number" min={20} max={250} value={weight} onChange={e=>setWeight(Number(e.target.value)||weight)} style={{width:90,background:'#0c131e',border:'1px solid var(--line)',borderRadius:7,padding:'8px 10px',color:'#fff'}}/>
+      </div>}
+    </div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'end',marginBottom:10}}>
+      <div><div className="stat-value" style={{color:'var(--cyan)'}}>{(drunkMl/1000).toFixed(2)}L</div><div className="result-label">of {(targetMl/1000).toFixed(1)}L today</div></div>
+      <div className="result-label">{perSlotMl}ml per slot</div>
+    </div>
+    <div className="progress" style={{marginBottom:16}}><i style={{width:`${Math.min(100, targetMl?drunkMl/targetMl*100:0)}%`}}/></div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(58px,1fr))',gap:6}}>
+      {slots.map(t => <button key={t} type="button" onClick={()=>toggleSlot(t)}
+        className="button ghost" style={{padding:'6px 4px',fontSize:11,justifyContent:'center',
+        borderColor: done[t] ? 'var(--cyan)' : t===nowStr ? 'var(--gold)' : undefined,
+        color: done[t] ? 'var(--cyan)' : undefined, opacity: done[t]?1:0.75}}>{t}</button>)}
+    </div>
+    <p className="muted" style={{fontSize:11,marginTop:10}}>Tap a time slot once you've had your water. Reminders only fire while this app/tab is open on this device — turn off anytime above.</p>
+  </div>;
+}
+
 function MemberPortal({member,onLogout,notify}:{member:Member;onLogout:()=>void;notify:(m:string)=>void}){
   const [history,setHistory]=useState<AttendanceLog[]>([]);
   const [showRenew,setShowRenew]=useState(false);
@@ -315,7 +392,7 @@ function MemberPortal({member,onLogout,notify}:{member:Member;onLogout:()=>void;
   useEffect(()=>{void supabase.from('gym_settings').select('value').eq('key','brochure_url').maybeSingle().then(({data})=>setBrochureUrl(data?.value||''))},[]);
   useEffect(()=>{void supabase.from('attendance_logs').select('*').eq('member_id',member.member_id).order('punch_in_time',{ascending:false}).limit(8).then(({data})=>setHistory(data??[]))},[member.member_id]);
   useEffect(()=>{void supabase.from('notices').select('id,title,body').eq('active',true).order('created_at',{ascending:false}).limit(3).then(({data})=>setNotices(data??[]))},[]);
-  return <><main className="portal"><InstallAppBanner/>{notices.length>0&&<div className="card" style={{marginBottom:18,borderColor:'var(--gold)'}}><div className="card-title"><Bell size={15} color="var(--gold)"/> Gym notices</div>{notices.map(n=><div key={n.id} style={{marginBottom:8}}><b>{n.title}</b>{n.body&&<p className="muted" style={{margin:'2px 0 0'}}>{n.body}</p>}</div>)}</div>}<div className="portal-head"><div><p className="eyebrow">Welcome back, warrior</p><h1 className="title">{member.name||member.member_id}</h1><p className="sub">{member.member_id} · {member.package||'Active member'}</p></div><button className="button ghost" onClick={onLogout}><LogOut size={15}/> Lock vault</button></div><div className="grid portal-grid"><div className="card" style={{textAlign:'center'}}><div className="card-title">Digital gate pass <span>Scan at entrance</span></div><div className="qr"><QRCodeSVG value={member.member_id} size={190}/></div><p className="sub">Show this code to the AI kiosk</p></div><div className="card"><div className="card-title">Membership status <span className="pill">{daysLeft(member.expiry_date)>0?'ACTIVE':'EXPIRED'}</span></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'end'}}><div><div className="stat-value" style={{color:'var(--cyan)'}}>{daysLeft(member.expiry_date)}</div><div className="result-label">days remaining</div></div><Target size={42} color="var(--gold)"/></div><div className="progress"><i style={{width:`${Math.min(100,Math.max(4,daysLeft(member.expiry_date)/30*100))}%`}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:14,fontSize:12}}><span className="muted">Started</span><b>{member.joining_date||'—'}</b><span className="muted">Expires</span><b>{member.expiry_date||'—'}</b></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="button primary" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowRenew(true)}><CreditCard size={15}/> Renew</button><button className="button ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowFreeze(true)}><Clock3 size={15}/> Freeze</button></div><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowEdit(true)}><Settings size={15}/> Update my details</button>{brochureUrl&&<a href={brochureUrl} target="_blank" rel="noreferrer" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}}><FileText size={15}/> Gym brochure & packages</a>}</div><div className="card"><div className="card-title">My recent attendance <span>Last 8 visits</span></div>{history.length?<div className="activity">{history.map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy">{x.punch_in_time?new Date(x.punch_in_time).toLocaleDateString():'—'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''} {x.punch_out_time?`→ ${new Date(x.punch_out_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'(still in)'}</small></div></div>)}</div>:<div className="empty">No visits logged yet.</div>}</div></div><ProgressPhotos memberId={member.member_id} notify={notify}/><Calculators notify={notify}/></main>{showRenew&&<RenewModal member={member} onClose={()=>setShowRenew(false)} onSaved={()=>notify('Renewal request sent — pay via the QR shown, or at reception.')}/>}{showFreeze&&<FreezeModal member={member} onClose={()=>setShowFreeze(false)} onSaved={()=>{setShowFreeze(false);notify('Freeze request sent to reception.')}}/>}{showEdit&&<MemberSelfEdit member={member} onClose={()=>setShowEdit(false)} notify={notify}/>}</>;
+  return <><main className="portal"><InstallAppBanner/>{notices.length>0&&<div className="card" style={{marginBottom:18,borderColor:'var(--gold)'}}><div className="card-title"><Bell size={15} color="var(--gold)"/> Gym notices</div>{notices.map(n=><div key={n.id} style={{marginBottom:8}}><b>{n.title}</b>{n.body&&<p className="muted" style={{margin:'2px 0 0'}}>{n.body}</p>}</div>)}</div>}<div className="portal-head"><div><p className="eyebrow">Welcome back, warrior</p><h1 className="title">{member.name||member.member_id}</h1><p className="sub">{member.member_id} · {member.package||'Active member'}</p></div><button className="button ghost" onClick={onLogout}><LogOut size={15}/> Lock vault</button></div><div className="grid portal-grid"><div className="card" style={{textAlign:'center'}}><div className="card-title">Digital gate pass <span>Scan at entrance</span></div><div className="qr"><QRCodeSVG value={member.member_id} size={190}/></div><p className="sub">Show this code to the AI kiosk</p></div><div className="card"><div className="card-title">Membership status <span className="pill">{daysLeft(member.expiry_date)>0?'ACTIVE':'EXPIRED'}</span></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'end'}}><div><div className="stat-value" style={{color:'var(--cyan)'}}>{daysLeft(member.expiry_date)}</div><div className="result-label">days remaining</div></div><Target size={42} color="var(--gold)"/></div><div className="progress"><i style={{width:`${Math.min(100,Math.max(4,daysLeft(member.expiry_date)/30*100))}%`}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:14,fontSize:12}}><span className="muted">Started</span><b>{member.joining_date||'—'}</b><span className="muted">Expires</span><b>{member.expiry_date||'—'}</b></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="button primary" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowRenew(true)}><CreditCard size={15}/> Renew</button><button className="button ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowFreeze(true)}><Clock3 size={15}/> Freeze</button></div><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowEdit(true)}><Settings size={15}/> Update my details</button>{brochureUrl&&<a href={brochureUrl} target="_blank" rel="noreferrer" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}}><FileText size={15}/> Gym brochure & packages</a>}</div><div className="card"><div className="card-title">My recent attendance <span>Last 8 visits</span></div>{history.length?<div className="activity">{history.map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy">{x.punch_in_time?new Date(x.punch_in_time).toLocaleDateString():'—'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''} {x.punch_out_time?`→ ${new Date(x.punch_out_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'(still in)'}</small></div></div>)}</div>:<div className="empty">No visits logged yet.</div>}</div></div><ProgressPhotos memberId={member.member_id} notify={notify}/><WaterTracker weightKg={member.weight_kg} notify={notify} storageKey={`bf_water_${member.member_id}`}/><Calculators notify={notify}/></main>{showRenew&&<RenewModal member={member} onClose={()=>setShowRenew(false)} onSaved={()=>notify('Renewal request sent — pay via the QR shown, or at reception.')}/>}{showFreeze&&<FreezeModal member={member} onClose={()=>setShowFreeze(false)} onSaved={()=>{setShowFreeze(false);notify('Freeze request sent to reception.')}}/>}{showEdit&&<MemberSelfEdit member={member} onClose={()=>setShowEdit(false)} notify={notify}/>}</>;
 }
 function FreezeModal({member,onClose,onSaved}:{member:Member;onClose:()=>void;onSaved:()=>void}){
   const [reason,setReason]=useState('');const [saving,setSaving]=useState(false);
@@ -335,19 +412,142 @@ function RenewModal({member,onClose,onSaved}:{member:Member;onClose:()=>void;onS
 function Calculators({notify}:{notify:(m:string)=>void}){const [height,setHeight]=useState('175');const [weight,setWeight]=useState('75');const bmi=(Number(weight)/(Number(height)/100)**2||0).toFixed(1);const [oneRmWeight,setOneRmWeight]=useState('60');const [reps,setReps]=useState('8');const oneRm=(Number(oneRmWeight)*(1+Number(reps)/30)||0).toFixed(1);const [age,setAge]=useState('28');const bmr=(10*Number(weight)+6.25*Number(height)-5*Number(age)+5||0).toFixed(0);const [activity,setActivity]=useState('1.55');const tdee=(Number(bmr)*Number(activity)||0).toFixed(0);const [neck,setNeck]=useState('38');const [waist,setWaist]=useState('85');const [sex,setSex]=useState('Male');const [hip,setHip]=useState('95');const bodyFat=sex==='Male'?(495/(1.0324-0.19077*Math.log10(Number(waist)-Number(neck))+0.15456*Math.log10(Number(height)))-450):(495/(1.29579-0.35004*Math.log10(Number(waist)+Number(hip)-Number(neck))+0.22100*Math.log10(Number(height)))-450);return <section style={{marginTop:32}}><div className="card-title">Performance lab <span>Personal analytics</span></div><div className="grid calc-grid"><div className="card"><div className="card-title"><BarChart3 size={16} color="var(--cyan)"/> BMI engine</div><div className="form-grid"><div className="field"><label>Height (cm)</label><input type="number" value={height} onChange={e=>setHeight(e.target.value)}/></div><div className="field"><label>Weight (kg)</label><input type="number" value={weight} onChange={e=>setWeight(e.target.value)}/></div></div><div className="calc-result">{bmi}</div><div className="result-label">{Number(bmi)<18.5?'Below range':Number(bmi)<25?'Healthy range':'Above range'}</div></div><div className="card"><div className="card-title"><Zap size={16} color="var(--gold)"/> 1RM estimator</div><div className="form-grid"><div className="field"><label>Weight (kg)</label><input type="number" value={oneRmWeight} onChange={e=>setOneRmWeight(e.target.value)}/></div><div className="field"><label>Reps</label><input type="number" value={reps} onChange={e=>setReps(e.target.value)}/></div></div><div className="calc-result">{oneRm} kg</div><div className="result-label">Estimated one-rep max</div></div><div className="card"><div className="card-title"><Activity size={16} color="var(--green)"/> BMR baseline</div><div className="field"><label>Age</label><input type="number" value={age} onChange={e=>setAge(e.target.value)}/></div><div className="calc-result">{bmr}</div><div className="result-label">Estimated calories / day</div></div><div className="card"><div className="card-title"><Flame size={16} color="var(--red)"/> TDEE (with activity)</div><div className="field"><label>Activity level</label><select value={activity} onChange={e=>setActivity(e.target.value)}><option value="1.2">Sedentary (desk job)</option><option value="1.375">Light (1-3 workouts/week)</option><option value="1.55">Moderate (3-5 workouts/week)</option><option value="1.725">Heavy (6-7 workouts/week)</option><option value="1.9">Athlete (2x/day)</option></select></div><div className="calc-result">{tdee}</div><div className="result-label">Calories to maintain current weight</div></div><div className="card"><div className="card-title"><Target size={16} color="var(--gold)"/> Body fat % (Navy method)</div><div className="form-grid"><div className="field"><label>Sex</label><select value={sex} onChange={e=>setSex(e.target.value)}><option>Male</option><option>Female</option></select></div><div className="field"><label>Neck (cm)</label><input type="number" value={neck} onChange={e=>setNeck(e.target.value)}/></div><div className="field"><label>Waist (cm)</label><input type="number" value={waist} onChange={e=>setWaist(e.target.value)}/></div>{sex==='Female'&&<div className="field"><label>Hip (cm)</label><input type="number" value={hip} onChange={e=>setHip(e.target.value)}/></div>}</div><div className="calc-result">{isFinite(bodyFat)&&bodyFat>0?bodyFat.toFixed(1):'—'}%</div><div className="result-label">Estimated body fat</div></div><div className="card"><div className="card-title"><DropletIcon/> Hydration target</div><div className="calc-result">{(Number(weight)*.035).toFixed(1)} L</div><div className="result-label">Daily baseline · add 500ml per workout</div></div><div className="card"><div className="card-title"><HeartIcon/> Cardio HR zone</div><div className="calc-result">{Math.round(208-.7*Number(age))}</div><div className="result-label">Estimated max heart rate</div></div><div className="card"><div className="card-title"><Calculator size={16} color="var(--blue)"/> Macro guide</div><div className="calc-result">{Number(weight)*2}g</div><div className="result-label">Daily protein target</div><div style={{display:'flex',justifyContent:'space-between',marginTop:10,fontSize:12}}><span className="muted">Carbs</span><b>{Math.round(Number(tdee)*0.4/4)}g</b><span className="muted">Fat</span><b>{Math.round(Number(tdee)*0.25/9)}g</b></div></div></div></section>}
 function DropletIcon(){return <span style={{color:'var(--cyan)'}}>◈</span>} function HeartIcon(){return <span style={{color:'var(--red)'}}>♡</span>}
 
-function Kiosk({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){const [code,setCode]=useState('');const [message,setMessage]=useState('');const [logs,setLogs]=useState<{id:string;name:string;action:string;time:string}[]>([]);const scan=async(e:FormEvent)=>{e.preventDefault();if(!code.trim())return;const {data}=await supabase.from('members').select('*').eq('member_id',code.trim().toUpperCase()).maybeSingle();if(!data){setMessage('ACCESS DENIED · ID NOT FOUND');notify('Warrior ID not found.');setCode('');return}const today=new Date().toISOString().slice(0,10);const existing=await supabase.from('attendance_logs').select('*').eq('member_id',data.member_id).gte('punch_in_time',`${today}T00:00:00`).order('punch_in_time',{ascending:false}).limit(1).maybeSingle();let action='CHECK-IN';if(existing.data&&!existing.data.punch_out_time){await supabase.from('attendance_logs').update({punch_out_time:new Date().toISOString(),status:'CHECKED_OUT'}).eq('id',existing.data.id);action='CHECK-OUT'}else{await supabase.from('attendance_logs').insert({member_id:data.member_id,status:'CHECKED_IN'});}setMessage(`${action} · ${data.name||data.member_id}`);setLogs(x=>[{id:data.member_id,name:data.name||data.member_id,action,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})},...x].slice(0,6));setCode('');};return <main className="kiosk"><div className="kiosk-inner"><div className="kiosk-head"><Brand/><div style={{display:'flex',alignItems:'center',gap:15}}><span className="status-dot"><i className="dot"/> SCANNER READY</span><button className="button ghost" onClick={onBack}><ArrowLeft size={15}/> Exit</button></div></div><div className="scan-box"><p className="kicker">BHAJRANG AI KIOSK // GATE 01</p><h1 className="title">Scan to enter.</h1><p className="sub">Present your QR pass or type your Warrior ID.</p><div className="scan-frame"><div className="scan-line"/><Radio size={48} strokeWidth={1}/></div><form onSubmit={scan}><input autoFocus className="kiosk-input" value={code} onChange={e=>setCode(e.target.value)} placeholder="WARRIOR ID"/></form>{message&&<p className={message.includes('DENIED')?'error':'success'} style={{fontSize:13,letterSpacing:'.08em',marginTop:20}}>{message}</p>}<div className="log-list" style={{textAlign:'left'}}>{logs.length>0&&<p className="eyebrow" style={{margin:'18px 0 0'}}>Live action log</p>}{logs.map(x=><div className="log" key={x.id+x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}</div></div></div></main>}
+function speak(text: string) {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.98; u.pitch = 1; u.volume = 1;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => /en-IN|en-GB|en-US/.test(v.lang) && /female|male/i.test(v.name)) || voices.find(v => v.lang?.startsWith('en'));
+    if (preferred) u.voice = preferred;
+    window.speechSynthesis.speak(u);
+  } catch { /* speech not available on this device — silently skip */ }
+}
+const GOODBYE_LINES = ['Great session — see you next time, warrior!', 'Well done today. Rest, hydrate, and come back strong.', 'That\'s how champions train. Goodbye for now!', 'Solid effort. Bhajrang Fitness is proud of you — see you soon!'];
+
+function Kiosk({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){
+  const [code,setCode]=useState('');
+  const [message,setMessage]=useState('');
+  const [alertLevel,setAlertLevel]=useState<'ok'|'warn'|'danger'>('ok');
+  const [logs,setLogs]=useState<{id:string;name:string;action:string;time:string}[]>([]);
+  const [scanning,setScanning]=useState(false);
+  const [camError,setCamError]=useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const processId = useCallback(async (rawId: string) => {
+    const id = rawId.trim().toUpperCase();
+    if (!id) return;
+    const {data}=await supabase.from('members').select('*').eq('member_id',id).maybeSingle();
+    if(!data){setMessage('ACCESS DENIED · ID NOT FOUND');setAlertLevel('danger');notify('Warrior ID not found.');setCode('');return}
+    const today=new Date().toISOString().slice(0,10);
+    const existing=await supabase.from('attendance_logs').select('*').eq('member_id',data.member_id).gte('punch_in_time',`${today}T00:00:00`).order('punch_in_time',{ascending:false}).limit(1).maybeSingle();
+    let action='CHECK-IN';
+    if(existing.data&&!existing.data.punch_out_time){
+      await supabase.from('attendance_logs').update({punch_out_time:new Date().toISOString(),status:'CHECKED_OUT'}).eq('id',existing.data.id);
+      action='CHECK-OUT';
+    } else {
+      await supabase.from('attendance_logs').insert({member_id:data.member_id,status:'CHECKED_IN'});
+    }
+    const name = data.name || data.member_id;
+    const dLeft = data.expiry_date ? daysLeft(data.expiry_date) : null;
+    const isExpired = data.expiry_date ? dLeft! <= 0 : false;
+    const isExpiringSoon = data.expiry_date ? (dLeft! > 0 && dLeft! <= 3) : false;
+
+    if (action === 'CHECK-IN') {
+      speak(`Welcome to Bhajrang Fitness, ${name}`);
+      if (isExpired) {
+        setTimeout(() => speak(`Attention. ${name}, your package has expired. Please renew at reception.`), 1600);
+      }
+    } else {
+      speak(GOODBYE_LINES[Math.floor(Math.random()*GOODBYE_LINES.length)]);
+    }
+
+    setAlertLevel(isExpired ? 'danger' : isExpiringSoon ? 'warn' : 'ok');
+    setMessage(isExpired ? `${action} · ${name} · PACKAGE EXPIRED` : isExpiringSoon ? `${action} · ${name} · Expires in ${dLeft} day${dLeft===1?'':'s'}` : `${action} · ${name}`);
+    setLogs(x=>[{id:data.member_id,name,action,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})},...x].slice(0,6));
+    setCode('');
+  }, [notify]);
+
+  const scan=async(e:FormEvent)=>{e.preventDefault();await processId(code);};
+
+  const stopCamera = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current = null; }
+    setScanning(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setCamError('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+      setScanning(true);
+      let lastTry = 0;
+      const loop = (t: number) => {
+        rafRef.current = requestAnimationFrame(loop);
+        if (t - lastTry < 220) return; // throttle decode attempts
+        lastTry = t;
+        const video = videoRef.current, canvas = canvasRef.current;
+        if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d'); if (!ctx) return;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const result = jsQR(imageData.data, imageData.width, imageData.height);
+        if (result && result.data) {
+          stopCamera();
+          processId(result.data);
+        }
+      };
+      rafRef.current = requestAnimationFrame(loop);
+    } catch (err) {
+      setCamError('Camera unavailable — check permissions, or type the Warrior ID below.');
+    }
+  }, [processId, stopCamera]);
+
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
+  return <main className="kiosk"><div className="kiosk-inner"><div className="kiosk-head"><Brand/><div style={{display:'flex',alignItems:'center',gap:15}}><span className="status-dot"><i className="dot"/> SCANNER READY</span><button className="button ghost" onClick={onBack}><ArrowLeft size={15}/> Exit</button></div></div><div className="scan-box"><p className="kicker">BHAJRANG AI KIOSK // GATE 01</p><h1 className="title">Scan to enter.</h1><p className="sub">Present your QR pass, use the camera, or type your Warrior ID.</p>
+    <div className="scan-frame" style={{overflow:'hidden',position:'relative'}}>
+      {scanning ? <video ref={videoRef} muted playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <><div className="scan-line"/><Radio size={48} strokeWidth={1}/></>}
+      <canvas ref={canvasRef} style={{display:'none'}}/>
+    </div>
+    <button type="button" className="button ghost" style={{width:'100%',justifyContent:'center',marginBottom:14}} onClick={()=>scanning?stopCamera():startCamera()}>
+      {scanning ? <><X size={15}/> Stop camera</> : <><Zap size={15}/> Scan with camera</>}
+    </button>
+    {camError && <p className="error" style={{fontSize:12,marginTop:-6,marginBottom:14}}>{camError}</p>}
+    <form onSubmit={scan}><input autoFocus className="kiosk-input" value={code} onChange={e=>setCode(e.target.value)} placeholder="WARRIOR ID"/></form>
+    {message&&<p className={alertLevel==='danger'?'error':alertLevel==='warn'?'kiosk-warn':'success'} style={{fontSize:13,letterSpacing:'.08em',marginTop:20}}>{message}</p>}
+    <div className="log-list" style={{textAlign:'left'}}>{logs.length>0&&<p className="eyebrow" style={{margin:'18px 0 0'}}>Live action log</p>}{logs.map(x=><div className="log" key={x.id+x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}</div>
+  </div></div></main>
+}
 
 function VillainGate({ onBack, notify }: { onBack: () => void; notify: (m: string) => void }) {
   const [passcode, setPasscode] = useState<string | null>(() => sessionStorage.getItem(VILLAIN_SESSION_KEY));
   const [pass, setPass] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
+  const [lockedFor, setLockedFor] = useState(0);
+  useEffect(() => {
+    if (lockedFor <= 0) return;
+    const iv = setInterval(() => setLockedFor(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(iv);
+  }, [lockedFor]);
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setChecking(true); setError('');
     const { data } = await supabase.rpc('verify_owner_passcode', { p_passcode: pass });
+    if (data === true) { sessionStorage.setItem(VILLAIN_SESSION_KEY, pass); setPasscode(pass); notify('Villain vault unlocked.'); setChecking(false); return; }
+    const { data: remaining } = await supabase.rpc('owner_lockout_seconds_remaining');
     setChecking(false);
-    if (data === true) { sessionStorage.setItem(VILLAIN_SESSION_KEY, pass); setPasscode(pass); notify('Villain vault unlocked.'); }
-    else { setError('Incorrect passcode.'); setPass(''); }
+    if (typeof remaining === 'number' && remaining > 0) { setLockedFor(remaining); setError(`Too many wrong attempts. Locked for ${Math.ceil(remaining/60)} more minute(s).`); }
+    else { setError('Incorrect passcode.'); }
+    setPass('');
   };
   if (passcode) return <VillainVault onBack={onBack} notify={notify} passcode={passcode} onLock={() => { sessionStorage.removeItem(VILLAIN_SESSION_KEY); setPasscode(null); }} />;
   return <main className="portal-login"><div className="card" style={{maxWidth:380,margin:'8vh auto'}}>
@@ -356,12 +556,12 @@ function VillainGate({ onBack, notify }: { onBack: () => void; notify: (m: strin
     <h1 className="title" style={{textAlign:'center'}}>Villain Vault</h1>
     <p className="sub" style={{textAlign:'center'}}>This is your private master control. Enter the passcode.</p>
     <form onSubmit={submit} style={{marginTop:24}}>
-      <div className="field"><label>Passcode</label><input autoFocus type="password" inputMode="numeric" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••" /></div>
+      <div className="field"><label>Passcode</label><input autoFocus type="password" inputMode="numeric" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••" disabled={lockedFor>0}/></div>
       {error && <p className="error" style={{fontSize:12}}>{error}</p>}
-      <button className="button primary" style={{width:'100%',justifyContent:'center',marginTop:18}} disabled={checking}><Lock size={15}/> {checking?'Checking...':'Unlock vault'}</button>
+      <button className="button primary" style={{width:'100%',justifyContent:'center',marginTop:18}} disabled={checking||lockedFor>0}><Lock size={15}/> {lockedFor>0?`Locked · ${Math.floor(lockedFor/60)}:${String(lockedFor%60).padStart(2,'0')}`:checking?'Checking...':'Unlock vault'}</button>
     </form>
     <button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:10}} onClick={onBack}><ArrowLeft size={14}/> Back to desk</button>
-    <p className="muted" style={{fontSize:11,marginTop:16,textAlign:'center',lineHeight:1.6}}><ShieldAlert size={12} style={{verticalAlign:'middle',marginRight:4}}/>The passcode is checked on the server and never stored in this app's code — but it's still a single shared secret, not a personal account. Keep it private and change it from the Settings tab.</p>
+    <p className="muted" style={{fontSize:11,marginTop:16,textAlign:'center',lineHeight:1.6}}><ShieldAlert size={12} style={{verticalAlign:'middle',marginRight:4}}/>The passcode is checked on the server (bcrypt-hashed, never stored in this app's code) and locks out for 15 minutes after 5 wrong attempts. Still a single shared secret, not a personal account — keep it private and change it from the Settings tab.</p>
   </div></main>;
 }
 
@@ -559,11 +759,64 @@ const FLYER_TEMPLATES = [
   { id: 'announcement', name: 'General Announcement', bg: '#0d1520', accent: '#36d8d3' },
 ] as const;
 
-function FlyerStudio() {
+const FLYER_OCCASIONS = [
+  { id: 'offer', label: 'Membership offer' },
+  { id: 'newbatch', label: 'New batch open' },
+  { id: 'festival', label: 'Festival special' },
+  { id: 'announcement', label: 'General announcement' },
+  { id: 'warning', label: 'Warning (rules/safety)' },
+  { id: 'reminder', label: 'Reminder (dues/renewal)' },
+] as const;
+
+function FlyerStudio({ notify }: { notify: (m: string) => void }) {
   const [template, setTemplate] = useState<typeof FLYER_TEMPLATES[number]>(FLYER_TEMPLATES[0]);
+  const [occasion, setOccasion] = useState<typeof FLYER_OCCASIONS[number]['id']>('offer');
+  const [brief, setBrief] = useState('20% off annual membership, this week only');
+  const [drafting, setDrafting] = useState(false);
+  const [aiEngine, setAiEngine] = useState('');
   const [headline, setHeadline] = useState('NEW YEAR OFFER');
   const [subline, setSubline] = useState('Flat 20% off on annual membership');
   const [footer, setFooter] = useState('BHAJRANG FITNESS · Call now to book your slot');
+  const [posting, setPosting] = useState(false);
+  const draftWithAI = async () => {
+    setDrafting(true); setAiEngine('');
+    const occasionLabel = FLYER_OCCASIONS.find(o => o.id === occasion)?.label || occasion;
+    const prompt = `Write short flyer copy for a gym named Bhajrang Fitness. Occasion: ${occasionLabel}. Owner's brief: ${brief || occasionLabel}. Respond with EXACTLY three lines and nothing else — no numbering, no quotes: Line 1 = a punchy headline, max 6 words. Line 2 = one supporting sentence, max 16 words. Line 3 = a short footer or call-to-action, max 10 words, may include "BHAJRANG FITNESS".`;
+    try {
+      const { data } = await supabase.functions.invoke('ai-coach', { body: { prompt } });
+      if (data?.configured && data?.text) {
+        const lines = String(data.text).split('\n').map((l: string) => l.replace(/^[-•\d.]+\s*/, '').trim()).filter(Boolean);
+        if (lines[0]) setHeadline(lines[0]);
+        if (lines[1]) setSubline(lines[1]);
+        if (lines[2]) setFooter(lines[2]);
+        setAiEngine(data.engine);
+        notify(`Draft written by ${data.engine === 'gemini' ? 'Gemini' : 'Groq'} — edit anything before sending.`);
+        setDrafting(false); return;
+      }
+    } catch { /* fall through to template */ }
+    const fallback: Record<string, [string, string, string]> = {
+      offer: ['LIMITED TIME OFFER', brief || 'Special pricing on memberships this week', 'BHAJRANG FITNESS · Call now to book your slot'],
+      newbatch: ['NEW BATCH STARTING', brief || 'Limited seats — early morning & evening slots', 'BHAJRANG FITNESS · Enroll at reception'],
+      festival: ['FESTIVAL SPECIAL', brief || 'Celebrate with a special membership discount', 'BHAJRANG FITNESS · Offer valid this week only'],
+      announcement: ['ANNOUNCEMENT', brief || 'Important update for all members', 'BHAJRANG FITNESS · Reception desk'],
+      warning: ['GYM RULES REMINDER', brief || 'Please follow safety and equipment guidelines', 'BHAJRANG FITNESS · Thank you for cooperating'],
+      reminder: ['RENEWAL REMINDER', brief || 'Your membership renewal is due soon', 'BHAJRANG FITNESS · Renew at reception or in the app'],
+    };
+    const [h, s, f] = fallback[occasion] || fallback.announcement;
+    setHeadline(h); setSubline(s); setFooter(f);
+    notify('Draft written (template mode — connect Gemini/Groq for AI-written copy).');
+    setDrafting(false);
+  };
+  const postAsNotice = async () => {
+    setPosting(true);
+    await supabase.from('notices').insert({ title: headline, body: `${subline}\n${footer}`, active: true });
+    setPosting(false);
+    notify('Posted to every member\'s Warrior app under Notices.');
+  };
+  const shareOnWhatsApp = () => {
+    const text = `${headline}\n${subline}\n${footer}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
   const [canvasKey, setCanvasKey] = useState(0);
   const [logoImg] = useState(() => { const img = new Image(); img.src = '/brand/logo.png'; return img; });
   const [logoLoaded, setLogoLoaded] = useState(false);
@@ -591,10 +844,18 @@ function FlyerStudio() {
   const canvasRef = useCallback((node: HTMLCanvasElement | null) => draw(node), [draw]);
   const download = () => { const canvas = document.getElementById('flyer-canvas') as HTMLCanvasElement | null; if (!canvas) return; const link = document.createElement('a'); link.download = `flyer-${template.id}.png`; link.href = canvas.toDataURL('image/png'); link.click(); };
   return <>
-    <div className="page-head"><div><p className="eyebrow">Zero-cost design</p><h1 className="title">Flyer Studio</h1><p className="sub">Generate posters entirely in the browser — no API, no subscription. Download as PNG and post anywhere.</p></div></div>
+    <div className="page-head"><div><p className="eyebrow">Zero-cost design + AI copy</p><h1 className="title">Flyer Studio</h1><p className="sub">Draft the words with AI, tweak the design, then download or send. Nothing posts anywhere until you choose to.</p></div>{aiEngine&&<span className="pill">{aiEngine.toUpperCase()+' LIVE'}</span>}</div>
+    <div className="card" style={{marginBottom:16}}>
+      <div className="card-title">1 · Draft copy with AI<span>Editable — nothing is final</span></div>
+      <div className="form-grid">
+        <div className="field"><label>Occasion</label><select value={occasion} onChange={e=>setOccasion(e.target.value as typeof occasion)}>{FLYER_OCCASIONS.map(o=><option key={o.id} value={o.id}>{o.label}</option>)}</select></div>
+        <div className="field" style={{gridColumn:'2 / -1'}}><label>Brief (what should it say?)</label><input value={brief} onChange={e=>setBrief(e.target.value)} placeholder="e.g. Diwali offer, 20% off annual plans, ends Sunday"/></div>
+      </div>
+      <button className="button cyan" style={{marginTop:14}} disabled={drafting} onClick={draftWithAI}><Sparkles size={15}/> {drafting?'Drafting...':'Draft with AI'}</button>
+    </div>
     <div className="grid layout-2">
       <div className="card">
-        <div className="card-title">Design</div>
+        <div className="card-title">2 · Edit & design</div>
         <div className="form-grid">
           <div className="field" style={{gridColumn:'1 / -1'}}><label>Template</label><select value={template.id} onChange={e=>{setTemplate(FLYER_TEMPLATES.find(t=>t.id===e.target.value)!);setCanvasKey(k=>k+1)}}>{FLYER_TEMPLATES.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
           <div className="field" style={{gridColumn:'1 / -1'}}><label>Headline</label><input value={headline} onChange={e=>setHeadline(e.target.value)} /></div>
@@ -603,6 +864,10 @@ function FlyerStudio() {
         </div>
         <button className="button primary full" style={{marginTop:16}} onClick={download}><Download size={15}/> Download PNG</button>
         <p className="muted" style={{fontSize:11,marginTop:12,lineHeight:1.6}}>Your Bhajrang Fitness logo is now applied automatically on every template.</p>
+        <div className="card-title" style={{marginTop:22}}>3 · Send<span>Once you're happy with it</span></div>
+        <button className="button ghost full" style={{marginTop:4}} disabled={posting} onClick={postAsNotice}><Bell size={15}/> {posting?'Posting...':'Post as notice in every Warrior app'}</button>
+        <button className="button ghost full" style={{marginTop:8}} onClick={shareOnWhatsApp}><MessageSquare size={15}/> Share text via WhatsApp</button>
+        <p className="muted" style={{fontSize:11,marginTop:10,lineHeight:1.6}}>WhatsApp share sends the text only — download the PNG above first if you want to attach the poster image to the chat.</p>
       </div>
       <div className="card" style={{display:'flex',alignItems:'center',justifyContent:'center'}}>
         <canvas key={canvasKey} id="flyer-canvas" ref={canvasRef} style={{width:'100%',maxWidth:360,borderRadius:12,boxShadow:'0 8px 30px rgba(0,0,0,.4)'}} />
@@ -708,7 +973,7 @@ function Reminders({ members, billing, notify }: { members: Member[]; billing: B
       notify('WhatsApp Cloud API rejected the send — check the template is approved in Meta Business.');
     } catch { notify('Could not reach the WhatsApp send function.'); }
   };
-  return <><div className="page-head"><div><p className="eyebrow">Reception follow-ups</p><h1 className="title">Due & Birthday Reminders</h1><p className="sub">WhatsApp, SMS (your own SIM balance), and email — all one-tap, all free, no messaging subscription.</p></div></div>
+  return <><div className="page-head"><div><p className="eyebrow">Reception follow-ups</p><h1 className="title">Due & Birthday Reminders</h1><p className="sub">WhatsApp, SMS (your own SIM balance), and email — all one-tap, all free, no messaging subscription.</p></div></div><WaterTracker notify={notify} storageKey="bf_water_staff"/>
     <div className="grid layout-2">
       <div className="card"><div className="card-title">Renewals due soon <span>{renewals.length}</span></div>
         {renewals.length ? <div className="activity">{renewals.map(m => { const msg=`Hi ${m.name||'there'}, your Bhajrang Fitness membership expires on ${m.expiry_date}. Renew soon to keep your streak going! 💪`; return <div className="activity-item" key={m.member_id}><div className="activity-icon"><Clock3 size={15}/></div><div className="activity-copy"><b>{m.name||m.member_id}</b><small>{m.phone} · expires in {daysLeft(m.expiry_date)}d ({m.expiry_date})</small></div><div style={{display:'flex',gap:6}}>{m.phone&&<a className="button cyan" style={{padding:'6px 8px'}} title="WhatsApp" href={waLink(m.phone,msg)} target="_blank" rel="noreferrer"><Smartphone size={13}/></a>}{m.phone&&<a className="button ghost" style={{padding:'6px 8px'}} title="SMS (your SIM)" href={smsLink(m.phone,msg)}><MessageSquare size={13}/></a>}{m.email&&<a className="button ghost" style={{padding:'6px 8px'}} title="Email" href={mailLink(m.email,'Membership renewal — Bhajrang Fitness',msg)}><Mail size={13}/></a>}{m.phone&&<button className="button ghost" style={{padding:'6px 8px'}} title="Send automatically via WhatsApp Cloud API" onClick={()=>sendCloud('renewal',m.phone,[m.name||'there',m.expiry_date||''])}><Bell size={13}/></button>}<button className="button ghost" style={{padding:'6px 8px'}} onClick={()=>copy(msg,'Renewal message')}><FileText size={13}/></button></div></div>; })}</div> : <div className="empty">No renewals due in the next two weeks.</div>}
@@ -1257,4 +1522,3 @@ function PackageManager({ passcode, notify }: { passcode: string; notify: (m: st
     </div>
   </>;
 }
-
