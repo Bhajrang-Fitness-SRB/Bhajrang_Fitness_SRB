@@ -16,9 +16,9 @@ Real Bhajrang Fitness / RB Warriors assets are wired in under `public/brand/`: a
 
 ## Security note on /villain
 
-The `/villain` lock is a **client-side** passcode check — it hides the page from casual visitors, but the check happens in the browser, so anyone who reads the page's source can find the code. That's an acceptable tradeoff **only while this deployment stays private** (repo not public, URL not shared beyond people you trust). If the repo ever goes public, or you want the vault to survive the URL leaking, this needs a server-side check instead (a Supabase Edge Function or real login) — ask if you'd like that built.
+The `/villain` lock is checked **server-side**: `verify_owner_passcode` runs inside a Postgres SECURITY DEFINER function, the passcode is bcrypt-hashed (`pgcrypto`), and the hash is never readable from the client. As of the `20260923000000_rbf_owner_passcode_lockout` migration, 5 wrong attempts locks the vault for 15 minutes (globally — this app has one shared owner secret, not per-user accounts). What this does NOT give you: individual accountability (you can't tell which device made an attempt) or 2FA. If you ever want a real per-person login (email/password or magic link via Supabase Auth) instead of one shared passcode, ask and it can be built.
 
-To change the passcode: edit `VILLAIN_PASSCODE` near the top of `src/App.tsx`.
+To change the passcode: open the Villain Vault and use "Change owner passcode" in Settings (or run `select set_owner_passcode('current','new');` directly in the Supabase SQL editor).
 
 ## Tech Stack
 
@@ -68,3 +68,43 @@ All tables have RLS enabled with anon/authenticated policies (single-tenant app,
 3. On iPhone: open in Safari → Share → **Add to Home Screen**
 
 The app works offline after first load.
+
+## Kiosk upgrade (this build)
+
+The `/kiosk` screen now has:
+
+- **Camera QR scanning** — tap "Scan with camera" to use the device's back camera (via `getUserMedia` + the `jsqr` library) instead of typing the Warrior ID. Falls back gracefully with an on-screen message if the camera is unavailable or permission is denied — typing the ID still always works.
+- **Voice greeting** on check-in ("Welcome to Bhajrang Fitness, {name}") and a **randomized positive goodbye line** on check-out, using the browser's built-in Web Speech API (`speechSynthesis`) — no new service or API key needed. Silently does nothing on devices/browsers without speech support (e.g. some older Android WebViews).
+- **3-day expiry alert** — if a member's `expiry_date` is within 3 days, the kiosk shows a pulsing yellow message instead of the plain green success message.
+- **Expired-package voice announcement** — if a member's package has already expired, on top of the welcome voice, a second spoken line follows: "Attention. {name}, your package has expired. Please renew at reception." The status text also turns red.
+
+### To run this build
+
+```bash
+npm install   # pulls in the new `jsqr` dependency
+npm run dev
+```
+
+The camera feature requires HTTPS (or `localhost`) — it won't work over plain HTTP on a real device, which Vite's dev/preview and any real deployment already satisfy.
+
+**Note:** this diagnosis of the changes was written and syntax-checked (TypeScript parse, no type-checker available offline) but could not be run through a live `npm install && npm run build` in the environment that produced it — please run a full build/test pass before deploying to the gym floor.
+
+## Water tracker (this build)
+
+Added a **Water goal tracker** card to:
+- `/warrior` — each member's portal, using their own `weight_kg` on file
+- Staff Desk → **Due & Birthday Reminders** tab — for your own daily planning (enter your weight manually)
+
+How it works:
+- Daily target = weight (kg) × 0.7 litres, split evenly across 30-min slots from 8:00am to 10:00pm.
+- Tap a time slot once you've had that glass — progress bar and total litres update live.
+- "Reminders on" toggle requests browser notification permission and pops a reminder each slot if you haven't logged it yet (falls back to an in-app toast if notifications are blocked/unsupported).
+- Fully per-device (stored in `localStorage`), and can be turned off anytime with the toggle — no server changes needed for this version.
+
+**Known limitation:** these reminders only fire while the app/PWA tab is open on that device — not a true background push when the app is fully closed. A real "notify me even when the app is closed" version needs Web Push (VAPID keys + a subscriptions table + a scheduled Supabase Edge Function firing every 30 min) — happy to build that next if you want it to survive the app being closed.
+
+## Owner-vault lockout (this build)
+
+New migration: `supabase/migrations/20260923000000_rbf_owner_passcode_lockout.sql` — adds a global 5-attempt / 15-minute lockout to the owner passcode check, plus an `owner_lockout_seconds_remaining()` RPC the login screen now polls to show a live countdown instead of letting attempts be unlimited.
+
+**Run this migration on your Supabase project** (SQL editor, or your usual migration pipeline) — the frontend change alone does nothing without it.
