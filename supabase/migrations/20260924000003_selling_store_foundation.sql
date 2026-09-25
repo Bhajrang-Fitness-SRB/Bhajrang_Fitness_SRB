@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.selling_owner_credentials (
 ALTER TABLE public.selling_owner_credentials ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.selling_owner_credentials FROM anon, authenticated;
 INSERT INTO public.selling_owner_credentials (id, passcode_hash)
-VALUES (true, crypt('293255', gen_salt('bf')))
+VALUES (true, crypt('925529', gen_salt('bf')))
 ON CONFLICT (id) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.verify_selling_owner(p_passcode text)
