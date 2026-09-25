@@ -93,3 +93,72 @@ export type Billing = {
   expiry_date: string | null;
   payment_method: string | null;
 };
+
+export type Lead = {
+  id: string;
+  name: string | null;
+  phone: string;
+  source: string;
+  notes: string | null;
+  last_contacted: string | null;
+  created_at: string | null;
+};
+
+export type LapsedMember = {
+  member_id: string;
+  name: string | null;
+  phone: string | null;
+  expiry_date: string | null;
+};
+
+export type SellingProduct = {
+  id: string;
+  name: string;
+  category: string | null;
+  unit_size: string | null;
+  mrp: number;
+  wholesale_price: number;
+  distributor_price: number;
+  purchase_cost: number;
+  stock: number;
+  reorder_threshold: number;
+  image_url: string | null;
+  description: string | null;
+  benefits: string | null;
+  warnings: string | null;
+  active: boolean;
+  created_at: string | null;
+};
+
+export type SellingStaff = {
+  id: string;
+  name: string;
+  phone: string;
+  approved: boolean;
+  active: boolean;
+  created_at: string | null;
+};
+
+export type SellingSale = {
+  id: number;
+  sale_date: string | null;
+  customer_name: string;
+  customer_mobile: string | null;
+  customer_address: string | null;
+  customer_photo_url: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  sales_person: string | null;
+  sales_staff_id: string | null;
+  product_id: string | null;
+  product_name: string | null;
+  quantity: number;
+  customer_tier: string;
+  unit_price: number;
+  gross_total: number;
+  paid_amount: number;
+  due_amount: number;
+  payment_due_date: string | null;
+  payment_mode: string;
+  created_at: string | null;
+};

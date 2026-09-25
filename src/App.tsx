@@ -3,10 +3,10 @@ import { Activity, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3,
 import { QRCodeSVG } from 'qrcode.react';
 import jsQR from 'jsqr';
 import Papa from 'papaparse';
-import { supabase, type AttendanceLog, type Billing, type Inventory, type Member, type Package, type PendingApproval, type Staff } from './lib/supabase';
+import { supabase, type AttendanceLog, type Billing, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff } from './lib/supabase';
 
-type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join';
-type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers';
+type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling';
+type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers' | 'leads';
 const VILLAIN_SESSION_KEY = 'rbf_villain_unlocked';
 const ADMIN_SESSION_KEY = 'rbf_admin_pass';
 
@@ -16,7 +16,7 @@ const toCsv = (rows: Record<string, unknown>[]) => { if (!rows.length) return ''
 const downloadCsv = (name: string, rows: Record<string, unknown>[]) => { const csv = toCsv(rows); if (!csv) return; const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
 
 function usePath(): [Path, (p: Path) => void] {
-  const normalize = (p: string): Path => (p === '/administration' ? '/' : ['/warrior', '/kiosk', '/villain', '/join'].includes(p) ? (p as Path) : '/');
+  const normalize = (p: string): Path => (p === '/administration' ? '/' : ['/warrior', '/kiosk', '/villain', '/join', '/selling'].includes(p) ? (p as Path) : '/');
   const [path, setPath] = useState<Path>(() => normalize(window.location.pathname));
   useEffect(() => { const onPop = () => setPath(normalize(window.location.pathname)); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop); }, []);
   useEffect(() => { if (window.location.pathname === '/administration') window.history.replaceState({}, '', '/'); }, []);
@@ -52,6 +52,7 @@ export default function App() {
     {path === '/kiosk' && <Kiosk onBack={home} notify={notify} />}
     {path === '/villain' && <VillainGate onBack={home} notify={notify} />}
     {path === '/join' && <PublicSignup />}
+    {path === '/selling' && <Selling onBack={home} notify={notify} />}
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }
@@ -86,7 +87,7 @@ function AdminGate({ notify }: { notify: (m: string) => void }) {
 }
 function Admin({ passcode, onLock, notify }: { passcode: string; onLock: () => void; notify: (m: string) => void }) {
  const [tab,setTab]=useState<AdminTab>('overview'); const [members,setMembers]=useState<Member[]>([]); const [pending,setPending]=useState<PendingApproval[]>([]); const [billing,setBilling]=useState<Billing[]>([]); const [attendance,setAttendance]=useState<AttendanceLog[]>([]); const [expenses,setExpenses]=useState<{id:number;expense_name:string|null;amount:number|null;expense_date:string|null}[]>([]); const [loading,setLoading]=useState(true); const [showExpense,setShowExpense]=useState(false); const [navOpen,setNavOpen]=useState(false); const selectTab=(t:AdminTab)=>{setTab(t);setNavOpen(false)};
- const load=useCallback(async()=>{setLoading(true); const [m,p,b,a,e]=await Promise.all([supabase.from('members').select('*').order('created_at',{ascending:false}),supabase.rpc('admin_list_pending_approvals',{p_passcode:passcode}),supabase.from('billing').select('*').order('created_at',{ascending:false}),supabase.from('attendance_logs').select('*').order('punch_in_time',{ascending:false}),supabase.from('expenses').select('*').order('expense_date',{ascending:false})]); if(m.data)setMembers(m.data);if(p.data)setPending(p.data);if(b.data)setBilling(b.data);if(a.data)setAttendance(a.data);if(e.data)setExpenses(e.data);setLoading(false)},[passcode]); useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),10000);return()=>window.clearInterval(timer)},[load]);
+ const load=useCallback(async()=>{setLoading(true); const [m,p,b,a,e]=await Promise.all([supabase.rpc('admin_list_members',{p_passcode:passcode}),supabase.rpc('admin_list_pending_approvals',{p_passcode:passcode}),supabase.rpc('admin_list_billing',{p_passcode:passcode}),supabase.from('attendance_logs').select('*').order('punch_in_time',{ascending:false}),supabase.from('expenses').select('*').order('expense_date',{ascending:false})]); if(m.data)setMembers(m.data);if(p.data)setPending(p.data);if(b.data)setBilling(b.data);if(a.data)setAttendance(a.data);if(e.data)setExpenses(e.data);setLoading(false)},[passcode]); useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),10000);return()=>window.clearInterval(timer)},[load]);
  const revenue=billing.reduce((s,x)=>s+(x.paid??0),0), expenseTotal=expenses.reduce((s,x)=>s+(x.amount??0),0), active=members.filter(m=>daysLeft(m.expiry_date)>0).length, present=attendance.filter(x=>x.punch_in_time&&new Date(x.punch_in_time).toDateString()===new Date().toDateString()&&!x.punch_out_time).length;
  const dueCount=billing.filter(x=>(x.due??0)>0).length;
  const renewalsSoon=members.filter(m=>{const d=daysLeft(m.expiry_date);return d>0&&d<=7}).length;
@@ -105,7 +106,7 @@ function Admin({ passcode, onLock, notify }: { passcode: string; onLock: () => v
    setPending(p=>p.filter(x=>x.id!==id));
    notify(`${item.name||'Warrior'} approved and vault created.`);pingTelegram(`✅ Approved: ${item.name||'Warrior'} — application #${id}.`);sendCloudEmail(item.email||'',item.name||'Warrior','Welcome to Bhajrang Fitness!',`Hi ${item.name||'there'},\n\nYour membership at Bhajrang Fitness has been approved. Log in at the Warrior app with your ID and passcode (sent separately) to see your gate pass, membership status, and more.\n\nSee you at the gym!\nTeam Bhajrang Fitness`);void load();return true
  };
- return <><Header/><button className="mobile-menu-btn" onClick={()=>setNavOpen(true)}><Menu size={18}/> Menu</button><div className="shell">{navOpen&&<div className="nav-backdrop" onClick={()=>setNavOpen(false)}/>}<aside className={navOpen?'sidebar open':'sidebar'}><button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button><div className="side-label">Reception desk</div><nav className="nav">{([['overview','Overview',LayoutDashboard],['attendance','Manual Attendance',UserCheck],['join','New Member / Join',UserPlus],['approvals','Approvals',Bell],['members','Warriors',Users],['reminders','Due & Birthday Reminders',Bell],['notices','Notices & Freeze',Bell],['billing','Billing',CreditCard],['expenses','Expenses',Wallet],['inventory','Store Inventory',Dumbbell],['diary','Diary',FileText],['flyers','Flyer Studio',Sparkles],['ai','Omni AI Hub',Sparkles]] as const).map(([key,label,Icon])=><button key={key} className={tab===key?'active':''} onClick={()=>selectTab(key)}><Icon size={16}/>{label}{key==='approvals'&&pending.length>0&&<span className="pill red" style={{marginLeft:'auto',padding:'3px 6px'}}>{pending.length}</span>}</button>)}</nav><div style={{marginTop:24,padding:'0 14px',display:'flex',flexDirection:'column',gap:8}}><a href="/villain" className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Skull size={13}/> Owner vault</a><button onClick={onLock} className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Lock size={13}/> Lock desk</button></div><div style={{marginTop:16,padding:'0 14px',color:'#607083',fontSize:11,lineHeight:1.6}}>Live sync active<br/><span style={{color:'#36d8d3'}}>Polling every 10 seconds</span></div><img src="/brand/team-badge.png" alt="RB Warriors" className="team-badge-mini" /></aside><main className="content">{tab==='overview'&&<Overview loading={loading} members={members} pending={pending} active={active} present={present} dueCount={dueCount} renewalsSoon={renewalsSoon} birthdaysSoon={birthdaysSoon} onApprovals={()=>selectTab('approvals')} onRefresh={load}/>} {tab==='attendance'&&<ManualAttendance members={members} attendance={attendance} notify={notify} onRefresh={load}/>} {tab==='join'&&<JoinMember passcode={passcode} notify={notify} onRefresh={load}/>} {tab==='approvals'&&<Approvals pending={pending} onApprove={finalizeApproval} approvingIds={approvingIds}/>} {tab==='members'&&<Members members={members} passcode={passcode} onRefresh={load} notify={notify}/>} {tab==='reminders'&&<Reminders members={members} billing={billing} notify={notify}/>} {tab==='notices'&&<NoticesDesk notify={notify}/>} {tab==='billing'&&<BillingView billing={billing} members={members} onRefresh={load}/>} {tab==='expenses'&&<Expenses expenses={expenses} onAdd={()=>setShowExpense(true)} onRefresh={load}/>} {tab==='inventory'&&<StoreInventory notify={notify}/>} {tab==='diary'&&<Diary notify={notify}/>} {tab==='flyers'&&<FlyerStudio notify={notify}/>} {tab==='ai'&&<AIHub members={members} notify={notify}/>}</main></div>{showExpense&&<ExpenseModal onClose={()=>setShowExpense(false)} onSaved={()=>{setShowExpense(false);notify('Expense logged.');void load()}}/>}</>;
+ return <><Header/><button className="mobile-menu-btn" onClick={()=>setNavOpen(true)}><Menu size={18}/> Menu</button><div className="shell">{navOpen&&<div className="nav-backdrop" onClick={()=>setNavOpen(false)}/>}<aside className={navOpen?'sidebar open':'sidebar'}><button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button><div className="side-label">Reception desk</div><nav className="nav">{([['overview','Overview',LayoutDashboard],['attendance','Manual Attendance',UserCheck],['join','New Member / Join',UserPlus],['approvals','Approvals',Bell],['members','Warriors',Users],['reminders','Due & Birthday Reminders',Bell],['notices','Notices & Freeze',Bell],['billing','Billing',CreditCard],['expenses','Expenses',Wallet],['inventory','Store Inventory',Dumbbell],['leads','Leads & Recovery',Search],['diary','Diary',FileText],['flyers','Flyer Studio',Sparkles],['ai','Omni AI Hub',Sparkles]] as const).map(([key,label,Icon])=><button key={key} className={tab===key?'active':''} onClick={()=>selectTab(key)}><Icon size={16}/>{label}{key==='approvals'&&pending.length>0&&<span className="pill red" style={{marginLeft:'auto',padding:'3px 6px'}}>{pending.length}</span>}</button>)}</nav><div style={{marginTop:24,padding:'0 14px',display:'flex',flexDirection:'column',gap:8}}><a href="/villain" className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Skull size={13}/> Owner vault</a><button onClick={onLock} className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Lock size={13}/> Lock desk</button></div><div style={{marginTop:16,padding:'0 14px',color:'#607083',fontSize:11,lineHeight:1.6}}>Live sync active<br/><span style={{color:'#36d8d3'}}>Polling every 10 seconds</span></div><img src="/brand/team-badge.png" alt="RB Warriors" className="team-badge-mini" /></aside><main className="content">{tab==='overview'&&<Overview loading={loading} members={members} pending={pending} active={active} present={present} dueCount={dueCount} renewalsSoon={renewalsSoon} birthdaysSoon={birthdaysSoon} onApprovals={()=>selectTab('approvals')} onRefresh={load}/>} {tab==='attendance'&&<ManualAttendance members={members} attendance={attendance} notify={notify} onRefresh={load}/>} {tab==='join'&&<JoinMember passcode={passcode} notify={notify} onRefresh={load}/>} {tab==='approvals'&&<Approvals pending={pending} onApprove={finalizeApproval} approvingIds={approvingIds}/>} {tab==='members'&&<Members members={members} passcode={passcode} onRefresh={load} notify={notify}/>} {tab==='reminders'&&<Reminders members={members} billing={billing} notify={notify}/>} {tab==='notices'&&<NoticesDesk notify={notify}/>} {tab==='billing'&&<BillingView billing={billing} members={members} onRefresh={load}/>} {tab==='expenses'&&<Expenses expenses={expenses} onAdd={()=>setShowExpense(true)} onRefresh={load}/>} {tab==='inventory'&&<StoreInventory notify={notify}/>} {tab==='leads'&&<Leads passcode={passcode} notify={notify}/>} {tab==='diary'&&<Diary notify={notify}/>} {tab==='flyers'&&<FlyerStudio notify={notify}/>} {tab==='ai'&&<AIHub members={members} notify={notify}/>}</main></div>{showExpense&&<ExpenseModal onClose={()=>setShowExpense(false)} onSaved={()=>{setShowExpense(false);notify('Expense logged.');void load()}}/>}</>;
 }
 
 function Overview(p:{loading:boolean;members:Member[];pending:PendingApproval[];active:number;present:number;dueCount:number;renewalsSoon:number;birthdaysSoon:number;onApprovals:()=>void;onRefresh:()=>void}) { return <><div className="page-head"><div><p className="eyebrow">Reception desk</p><h1 className="title">Good morning.</h1><p className="sub">Today's floor at a glance — financial reports live in the owner vault.</p></div><button className="button" onClick={p.onRefresh}><RefreshCw size={15}/> Sync now</button></div><div className="grid stats"><Stat icon={Users} label="Total warriors" value={p.members.length} foot={`${p.active} active memberships`} color="var(--gold)"/><Stat icon={Activity} label="On floor now" value={p.present} foot="Live attendance" color="var(--cyan)"/><Stat icon={Bell} label="Pending review" value={p.pending.length} foot="Needs your attention" color="var(--red)"/><Stat icon={Clock3} label="Dues to collect" value={p.dueCount} foot="Members with balance" color="var(--gold)"/></div><div className="grid layout-2"><div className="card"><div className="card-title">Renewals due soon <span>Next 7 days</span></div><div className="stat-value" style={{color:'var(--cyan)'}}>{p.renewalsSoon}</div><div className="result-label">Check the Reminders tab to notify them</div></div><div className="card"><div className="card-title">Birthdays this week <span>Send wishes</span></div><div className="stat-value" style={{color:'var(--gold)'}}>{p.birthdaysSoon}</div><div className="result-label">Check the Reminders tab for ready-made messages</div></div></div>{p.pending.length>0&&<div className="card" style={{marginTop:20}}><div className="card-title">Verification queue <span>Action required</span></div>{p.pending.slice(0,4).map(x=><div className="activity-item" style={{marginBottom:16}} key={x.id}><div className="activity-icon" style={{color:'var(--gold)'}}><Clock3 size={15}/></div><div className="activity-copy"><b>{x.name||'Unnamed applicant'}</b><small>{x.mobile} · {x.created_at?new Date(x.created_at).toLocaleDateString():'Recently'}</small></div><span className="pill red" style={{marginLeft:'auto'}}>NEW</span></div>)}<button className="button ghost" onClick={p.onApprovals} style={{width:'100%',justifyContent:'center',marginTop:8}}>Review queue <ArrowRight size={14}/></button></div>}</>; }
@@ -441,21 +442,11 @@ function Kiosk({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){
   const processId = useCallback(async (rawId: string) => {
     const id = rawId.trim().toUpperCase();
     if (!id) return;
-    const {data}=await supabase.from('members').select('*').eq('member_id',id).maybeSingle();
-    if(!data){setMessage('ACCESS DENIED · ID NOT FOUND');setAlertLevel('danger');notify('Warrior ID not found.');setCode('');return}
-    const today=new Date().toISOString().slice(0,10);
-    const existing=await supabase.from('attendance_logs').select('*').eq('member_id',data.member_id).gte('punch_in_time',`${today}T00:00:00`).order('punch_in_time',{ascending:false}).limit(1).maybeSingle();
-    let action='CHECK-IN';
-    if(existing.data&&!existing.data.punch_out_time){
-      await supabase.from('attendance_logs').update({punch_out_time:new Date().toISOString(),status:'CHECKED_OUT'}).eq('id',existing.data.id);
-      action='CHECK-OUT';
-    } else {
-      await supabase.from('attendance_logs').insert({member_id:data.member_id,status:'CHECKED_IN'});
-    }
+    const { data, error } = await supabase.rpc('kiosk_scan', { p_member_id: id });
+    if (error || !data || !data.found) { setMessage('ACCESS DENIED · ID NOT FOUND'); setAlertLevel('danger'); notify('Warrior ID not found.'); setCode(''); return; }
     const name = data.name || data.member_id;
-    const dLeft = data.expiry_date ? daysLeft(data.expiry_date) : null;
-    const isExpired = data.expiry_date ? dLeft! <= 0 : false;
-    const isExpiringSoon = data.expiry_date ? (dLeft! > 0 && dLeft! <= 3) : false;
+    const action = data.action as string;
+    const isExpired = !!data.expired;
 
     if (action === 'CHECK-IN') {
       speak(`Welcome to Bhajrang Fitness, ${name}`);
@@ -466,8 +457,8 @@ function Kiosk({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){
       speak(GOODBYE_LINES[Math.floor(Math.random()*GOODBYE_LINES.length)]);
     }
 
-    setAlertLevel(isExpired ? 'danger' : isExpiringSoon ? 'warn' : 'ok');
-    setMessage(isExpired ? `${action} · ${name} · PACKAGE EXPIRED` : isExpiringSoon ? `${action} · ${name} · Expires in ${dLeft} day${dLeft===1?'':'s'}` : `${action} · ${name}`);
+    setAlertLevel(isExpired ? 'danger' : 'ok');
+    setMessage(isExpired ? `${action} · ${name} · PACKAGE EXPIRED` : `${action} · ${name}`);
     setLogs(x=>[{id:data.member_id,name,action,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})},...x].slice(0,6));
     setCode('');
   }, [notify]);
@@ -576,8 +567,8 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
   const load = useCallback(async () => {
     setLoading(true);
     const [m, b, e, a, s] = await Promise.all([
-      supabase.from('members').select('*'),
-      supabase.from('billing').select('*'),
+      supabase.rpc('admin_list_members', { p_passcode: passcode }),
+      supabase.rpc('admin_list_billing', { p_passcode: passcode }),
       supabase.from('expenses').select('*'),
       supabase.from('attendance_logs').select('*').order('punch_in_time', { ascending: false }).limit(50),
       supabase.rpc('admin_list_staff', { p_passcode: passcode }),
@@ -1031,6 +1022,73 @@ function StoreInventory({ notify }: { notify: (m: string) => void }) {
   </>;
 }
 
+function Leads({ passcode, notify }: { passcode: string; notify: (m: string) => void }) {
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [lapsed, setLapsed] = useState<LapsedMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showLapsed, setShowLapsed] = useState(false);
+  const [form, setForm] = useState({ id: null as string | null, name: '', phone: '', source: 'Enquiry', notes: '' });
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [l, m] = await Promise.all([
+      supabase.rpc('admin_list_leads', { p_passcode: passcode }),
+      supabase.rpc('admin_list_lapsed_members', { p_passcode: passcode }),
+    ]);
+    setLeads((l.data as Lead[]) ?? []); setLapsed((m.data as LapsedMember[]) ?? []); setLoading(false);
+  }, [passcode]);
+  useEffect(() => { void load(); }, [load]);
+  const resetForm = () => setForm({ id: null, name: '', phone: '', source: 'Enquiry', notes: '' });
+  const edit = (l: Lead) => setForm({ id: l.id, name: l.name ?? '', phone: l.phone, source: l.source, notes: l.notes ?? '' });
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.phone.trim()) { notify('A phone number is required.'); return; }
+    setSaving(true);
+    const { error } = await supabase.rpc('admin_upsert_lead', { p_passcode: passcode, p_id: form.id, p_name: form.name || null, p_phone: form.phone, p_source: form.source, p_notes: form.notes || null });
+    setSaving(false);
+    if (error) { notify('Could not save that lead.'); return; }
+    notify(form.id ? 'Lead updated.' : 'Lead added.'); resetForm(); void load();
+  };
+  const remove = async (l: Lead) => {
+    const { error } = await supabase.rpc('admin_delete_lead', { p_passcode: passcode, p_id: l.id });
+    if (error) { notify('Could not remove that lead.'); return; }
+    notify('Lead removed.'); void load();
+  };
+  const addLapsedAsLead = async (m: LapsedMember) => {
+    const { error } = await supabase.rpc('admin_upsert_lead', { p_passcode: passcode, p_id: null, p_name: m.name, p_phone: m.phone ?? '', p_source: 'Lapsed member', p_notes: `Was member ${m.member_id}, expired ${m.expiry_date ?? '—'}.` });
+    if (error) { notify('Could not add to leads.'); return; }
+    notify(`${m.name ?? m.member_id} added to leads.`); void load();
+  };
+  return <>
+    <div className="page-head"><div><p className="eyebrow">Owner outreach</p><h1 className="title">Leads & Recovery</h1><p className="sub">Old enquiries, walk-ins who never joined, and members worth winning back — separate from your active roster.</p></div></div>
+    <div className="grid stats">
+      <Stat icon={Search} label="Open leads" value={leads.length} foot="In your outreach list" color="var(--cyan)" />
+      <Stat icon={Clock3} label="Lapsed 180+ days" value={lapsed.length} foot="Members worth recontacting" color="var(--gold)" />
+    </div>
+    <div className="grid layout-2" style={{ marginTop: 20 }}>
+      <div className="card"><div className="card-title">{form.id ? 'Edit lead' : 'Add a lead'}</div>
+        <form onSubmit={save} className="form-grid">
+          <div className="field"><label>Name</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Optional" /></div>
+          <div className="field"><label>Phone</label><input required value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="10-digit mobile" /></div>
+          <div className="field"><label>Source</label><select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}><option>Enquiry</option><option>Walk-in</option><option>Referral</option><option>Social media</option><option>Lapsed member</option><option>Other</option></select></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Notes</label><textarea rows={3} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="What they were interested in, when to call back..." /></div>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
+            <button className="button primary full" disabled={saving} style={{ flex: 1 }}><UserPlus size={15} /> {saving ? 'Saving...' : form.id ? 'Save changes' : 'Add lead'}</button>
+            {form.id && <button type="button" className="button ghost" onClick={resetForm}>Cancel</button>}
+          </div>
+        </form>
+      </div>
+      <div className="card"><div className="card-title">Leads <span>{leads.length}</span></div>
+        {loading ? <div className="empty">Loading...</div> : leads.length ? <div className="activity">{leads.map(l => <div className="activity-item" key={l.id}><div className="activity-icon"><Search size={15} /></div><div className="activity-copy" style={{ flex: 1 }}><b>{l.name || l.phone}</b><small>{l.phone} · {l.source}{l.last_contacted ? ` · last contacted ${l.last_contacted}` : ''}</small>{l.notes && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{l.notes}</div>}</div><div style={{ display: 'flex', gap: 4 }}><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => edit(l)}><Settings size={13} /></button><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => remove(l)}><Trash2 size={13} /></button></div></div>)}</div> : <div className="empty">No leads yet.</div>}
+      </div>
+    </div>
+    <div className="card" style={{ marginTop: 20 }}>
+      <div className="card-title" style={{ cursor: 'pointer' }} onClick={() => setShowLapsed(v => !v)}>Lapsed members <span>{lapsed.length} · {showLapsed ? 'Hide' : 'Show'}</span></div>
+      {showLapsed && (lapsed.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Member</th><th>Phone</th><th>Expired</th><th></th></tr></thead><tbody>{lapsed.map(m => <tr key={m.member_id}><td><b>{m.name || m.member_id}</b><div className="muted" style={{ fontSize: 11 }}>{m.member_id}</div></td><td>{m.phone || '—'}</td><td>{m.expiry_date || '—'}</td><td><button className="button ghost" style={{ padding: '5px 8px', fontSize: 12 }} onClick={() => addLapsedAsLead(m)}><UserPlus size={13} /> Add to leads</button></td></tr>)}</tbody></table></div> : <div className="empty">No one lapsed 180+ days — good retention.</div>)}
+    </div>
+  </>;
+}
+
 async function compressImageFile(file: File, maxDim = 640, quality = 0.72): Promise<Blob> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
@@ -1077,6 +1135,317 @@ function PhotoUploadField({ label, hint, value, onChange, capture }: { label: st
     {error && <p className="error" style={{ fontSize: 12 }}>{error}</p>}
   </div>;
 }
+const SELLING_OWNER_KEY = 'rbf_selling_owner_pass';
+const SELLING_STAFF_KEY = 'rbf_selling_staff_auth';
+
+function Selling({ onBack, notify }: { onBack: () => void; notify: (m: string) => void }) {
+  const [ownerPass, setOwnerPass] = useState<string | null>(() => sessionStorage.getItem(SELLING_OWNER_KEY));
+  const [staffAuth, setStaffAuth] = useState<{ phone: string; passcode: string; name: string } | null>(() => {
+    const raw = sessionStorage.getItem(SELLING_STAFF_KEY);
+    try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+  });
+  const lockOwner = () => { sessionStorage.removeItem(SELLING_OWNER_KEY); setOwnerPass(null); };
+  const lockStaff = () => { sessionStorage.removeItem(SELLING_STAFF_KEY); setStaffAuth(null); };
+  const onOwnerLogin = (p: string) => { sessionStorage.setItem(SELLING_OWNER_KEY, p); setOwnerPass(p); };
+  const onStaffLogin = (auth: { phone: string; passcode: string; name: string }) => { sessionStorage.setItem(SELLING_STAFF_KEY, JSON.stringify(auth)); setStaffAuth(auth); };
+  if (ownerPass) return <SellingOwnerPanel passcode={ownerPass} onLock={lockOwner} onBack={onBack} notify={notify} />;
+  if (staffAuth) return <SellingStaffPanel auth={staffAuth} onLock={lockStaff} onBack={onBack} notify={notify} />;
+  return <SellingGate onBack={onBack} notify={notify} onOwnerLogin={onOwnerLogin} onStaffLogin={onStaffLogin} />;
+}
+
+function SellingGate({ onBack, notify, onOwnerLogin, onStaffLogin }: { onBack: () => void; notify: (m: string) => void; onOwnerLogin: (p: string) => void; onStaffLogin: (auth: { phone: string; passcode: string; name: string }) => void }) {
+  const [mode, setMode] = useState<'owner' | 'staff-login' | 'staff-signup'>('staff-login');
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState('');
+  const [ownerPass, setOwnerPass] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [passcode, setPasscode] = useState('');
+
+  const submitOwner = async (e: FormEvent) => {
+    e.preventDefault(); setChecking(true); setError('');
+    const { data } = await supabase.rpc('verify_selling_owner', { p_passcode: ownerPass });
+    setChecking(false);
+    if (data) onOwnerLogin(ownerPass); else { setError('Incorrect owner passcode.'); setOwnerPass(''); }
+  };
+  const submitStaffLogin = async (e: FormEvent) => {
+    e.preventDefault(); setChecking(true); setError('');
+    const { data, error: err } = await supabase.rpc('verify_selling_staff_login', { p_phone: phone, p_passcode: passcode });
+    setChecking(false);
+    const row = Array.isArray(data) ? data[0] : data;
+    if (err || !row) { setError('Incorrect phone or passcode.'); return; }
+    if (!row.approved) { setError('Your account is pending owner approval. Try again later.'); return; }
+    onStaffLogin({ phone, passcode, name: row.name });
+  };
+  const submitSignup = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !phone.trim() || passcode.trim().length < 4) { setError('Name, phone, and a passcode of at least 4 characters are required.'); return; }
+    setChecking(true); setError('');
+    const { error: err } = await supabase.rpc('selling_staff_signup', { p_name: name, p_phone: phone, p_passcode: passcode });
+    setChecking(false);
+    if (err) { setError('Could not sign up — that phone number may already be registered.'); return; }
+    notify('Signed up! Wait for the owner to approve your account, then log in.');
+    setMode('staff-login'); setName(''); setPasscode('');
+  };
+
+  return <main className="portal-login"><div className="card" style={{ maxWidth: 400, margin: '8vh auto' }}>
+    <Brand />
+    <p className="eyebrow" style={{ textAlign: 'center', marginTop: 20 }}>Store</p>
+    <h1 className="title" style={{ textAlign: 'center' }}>Selling desk.</h1>
+    <p className="sub" style={{ textAlign: 'center' }}>A separate system for product sales — completely apart from gym membership.</p>
+    <div style={{ display: 'flex', gap: 6, marginTop: 20 }}>
+      <button type="button" className={mode === 'staff-login' ? 'button primary' : 'button ghost'} style={{ flex: 1, justifyContent: 'center', fontSize: 12 }} onClick={() => { setMode('staff-login'); setError(''); }}>Staff login</button>
+      <button type="button" className={mode === 'staff-signup' ? 'button primary' : 'button ghost'} style={{ flex: 1, justifyContent: 'center', fontSize: 12 }} onClick={() => { setMode('staff-signup'); setError(''); }}>Staff sign up</button>
+      <button type="button" className={mode === 'owner' ? 'button primary' : 'button ghost'} style={{ flex: 1, justifyContent: 'center', fontSize: 12 }} onClick={() => { setMode('owner'); setError(''); }}>Owner</button>
+    </div>
+    {mode === 'owner' && <form onSubmit={submitOwner} style={{ marginTop: 20 }}>
+      <div className="field"><label>Owner passcode</label><input autoFocus type="password" inputMode="numeric" value={ownerPass} onChange={e => setOwnerPass(e.target.value)} placeholder="••••••" /></div>
+      {error && <p className="error" style={{ fontSize: 12 }}>{error}</p>}
+      <button className="button primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} disabled={checking}><Lock size={15} /> {checking ? 'Checking...' : 'Unlock owner view'}</button>
+    </form>}
+    {mode === 'staff-login' && <form onSubmit={submitStaffLogin} style={{ marginTop: 20 }}>
+      <div className="field"><label>Phone</label><input autoFocus value={phone} onChange={e => setPhone(e.target.value)} placeholder="Your registered phone" /></div>
+      <div className="field"><label>Passcode</label><input type="password" value={passcode} onChange={e => setPasscode(e.target.value)} placeholder="••••••" /></div>
+      {error && <p className="error" style={{ fontSize: 12 }}>{error}</p>}
+      <button className="button primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} disabled={checking}><LogIn size={15} /> {checking ? 'Checking...' : 'Log in'}</button>
+    </form>}
+    {mode === 'staff-signup' && <form onSubmit={submitSignup} style={{ marginTop: 20 }}>
+      <div className="field"><label>Your name</label><input autoFocus value={name} onChange={e => setName(e.target.value)} /></div>
+      <div className="field"><label>Phone</label><input value={phone} onChange={e => setPhone(e.target.value)} /></div>
+      <div className="field"><label>Choose a passcode</label><input type="password" value={passcode} onChange={e => setPasscode(e.target.value)} placeholder="At least 4 characters" /></div>
+      {error && <p className="error" style={{ fontSize: 12 }}>{error}</p>}
+      <button className="button primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} disabled={checking}><UserPlus size={15} /> {checking ? 'Submitting...' : 'Sign up'}</button>
+      <p className="muted" style={{ fontSize: 11, marginTop: 10, textAlign: 'center' }}>The owner must approve your account before you can log in.</p>
+    </form>}
+    <button className="button ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 14 }} onClick={onBack}><ArrowLeft size={14} /> Back</button>
+  </div></main>;
+}
+
+function SellingOwnerPanel({ passcode, onLock, onBack, notify }: { passcode: string; onLock: () => void; onBack: () => void; notify: (m: string) => void }) {
+  const [tab, setTab] = useState<'staff' | 'products' | 'sales' | 'settings'>('sales');
+  const [staff, setStaff] = useState<SellingStaff[]>([]);
+  const [products, setProducts] = useState<SellingProduct[]>([]);
+  const [sales, setSales] = useState<SellingSale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [s, p, sa] = await Promise.all([
+      supabase.rpc('selling_admin_list_staff', { p_passcode: passcode }),
+      supabase.from('selling_products').select('*').order('name', { ascending: true }),
+      supabase.rpc('selling_admin_list_sales', { p_passcode: passcode }),
+    ]);
+    setStaff((s.data as SellingStaff[]) ?? []); setProducts((p.data as SellingProduct[]) ?? []); setSales((sa.data as SellingSale[]) ?? []); setLoading(false);
+  }, [passcode]);
+  useEffect(() => { void load(); }, [load]);
+  const setStaffStatus = async (s: SellingStaff, approved: boolean, active: boolean) => {
+    const { error } = await supabase.rpc('selling_admin_set_staff_status', { p_passcode: passcode, p_staff_id: s.id, p_approved: approved, p_active: active });
+    if (error) { notify('Could not update that account.'); return; }
+    notify(`${s.name} updated.`); void load();
+  };
+  const revenue = sales.reduce((sum, x) => sum + (x.paid_amount ?? 0), 0);
+  const dueTotal = sales.reduce((sum, x) => sum + (x.due_amount ?? 0), 0);
+  const pendingStaff = staff.filter(s => !s.approved);
+  return <><Header onBack={onBack} /><div className="shell"><aside className="sidebar" style={{ position: 'static' }}>
+    <div className="side-label">Selling desk · Owner</div>
+    <nav className="nav">
+      {([['sales', 'All sales', CircleDollarSign], ['staff', 'Sales staff', Users], ['products', 'Products', Dumbbell], ['settings', 'Settings', Settings]] as const).map(([key, label, Icon]) =>
+        <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><Icon size={16} />{label}{key === 'staff' && pendingStaff.length > 0 && <span className="pill red" style={{ marginLeft: 'auto', padding: '3px 6px' }}>{pendingStaff.length}</span>}</button>)}
+    </nav>
+    <div style={{ marginTop: 24, padding: '0 14px' }}><button onClick={onLock} className="button ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 11 }}><Lock size={13} /> Lock</button></div>
+  </aside><main className="content">
+    {tab === 'sales' && <>
+      <div className="page-head"><div><p className="eyebrow">Owner view</p><h1 className="title">All sales</h1></div></div>
+      <div className="grid stats">
+        <Stat icon={CircleDollarSign} label="Collected" value={money(revenue)} foot="Across all staff" color="var(--gold)" />
+        <Stat icon={Wallet} label="Outstanding" value={money(dueTotal)} foot="Still due from customers" color="var(--red)" />
+        <Stat icon={Users} label="Sales logged" value={sales.length} foot="All time" color="var(--cyan)" />
+      </div>
+      <div className="card" style={{ marginTop: 20 }}><div className="card-title">Transactions <span>{sales.length}</span></div>
+        {loading ? <div className="empty">Loading...</div> : sales.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Qty</th><th>Staff</th><th>Paid</th><th>Due</th></tr></thead><tbody>{sales.map(s => <tr key={s.id}><td>{s.sale_date}</td><td>{s.customer_name}<div className="muted" style={{ fontSize: 11 }}>{s.customer_mobile}</div></td><td>{s.product_name}</td><td>{s.quantity}</td><td>{s.sales_person}</td><td>{money(s.paid_amount)}</td><td style={s.due_amount > 0 ? { color: 'var(--red)' } : undefined}>{money(s.due_amount)}</td></tr>)}</tbody></table></div> : <div className="empty">No sales recorded yet.</div>}
+      </div>
+    </>}
+    {tab === 'staff' && <>
+      <div className="page-head"><div><p className="eyebrow">Owner view</p><h1 className="title">Sales staff</h1><p className="sub">Approve new signups and manage access.</p></div></div>
+      <div className="card"><div className="card-title">Accounts <span>{staff.length}</span></div>
+        {loading ? <div className="empty">Loading...</div> : staff.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Name</th><th>Phone</th><th>Status</th><th></th></tr></thead><tbody>{staff.map(s => <tr key={s.id}><td><b>{s.name}</b></td><td>{s.phone}</td><td>{!s.approved ? <span className="pill red">Pending</span> : s.active ? <span className="pill">Active</span> : <span className="pill red">Suspended</span>}</td><td style={{ display: 'flex', gap: 6 }}>
+          {!s.approved && <button className="button primary" style={{ padding: '6px 10px', fontSize: 12 }} onClick={() => setStaffStatus(s, true, true)}><Check size={13} /> Approve</button>}
+          {s.approved && s.active && <button className="button ghost" style={{ padding: '6px 10px', fontSize: 12 }} onClick={() => setStaffStatus(s, true, false)}>Suspend</button>}
+          {s.approved && !s.active && <button className="button ghost" style={{ padding: '6px 10px', fontSize: 12 }} onClick={() => setStaffStatus(s, true, true)}>Reactivate</button>}
+        </td></tr>)}</tbody></table></div> : <div className="empty">No staff signups yet.</div>}
+      </div>
+    </>}
+    {tab === 'products' && <>
+      <div className="page-head"><div><p className="eyebrow">Owner view</p><h1 className="title">Products</h1><p className="sub">Catalog is managed by sales staff — this is a read-only view.</p></div></div>
+      <div className="card"><div className="card-title">Catalog <span>{products.length}</span></div>
+        {loading ? <div className="empty">Loading...</div> : products.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Product</th><th>Category</th><th>MRP</th><th>Stock</th></tr></thead><tbody>{products.map(p => <tr key={p.id}><td><b>{p.name}</b>{p.unit_size && <div className="muted" style={{ fontSize: 11 }}>{p.unit_size}</div>}</td><td>{p.category}</td><td>{money(p.mrp)}</td><td style={p.stock <= p.reorder_threshold ? { color: 'var(--red)' } : undefined}>{p.stock}</td></tr>)}</tbody></table></div> : <div className="empty">No products yet.</div>}
+      </div>
+    </>}
+    {tab === 'settings' && <SellingOwnerSettings passcode={passcode} notify={notify} />}
+  </main></div></>;
+}
+
+function SellingOwnerSettings({ passcode, notify }: { passcode: string; notify: (m: string) => void }) {
+  const [current, setCurrent] = useState(passcode);
+  const [next, setNext] = useState('');
+  const [saving, setSaving] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    const { data, error } = await supabase.rpc('set_selling_owner_passcode', { p_current_passcode: current, p_new_passcode: next });
+    setSaving(false);
+    if (error || !data) { notify('Could not change the passcode — check the current one.'); return; }
+    sessionStorage.setItem(SELLING_OWNER_KEY, next);
+    notify('Owner passcode updated.'); setNext('');
+  };
+  return <><div className="page-head"><div><p className="eyebrow">Owner view</p><h1 className="title">Settings</h1></div></div>
+    <div className="card" style={{ maxWidth: 420 }}><div className="card-title">Change owner passcode</div>
+      <form onSubmit={submit} className="form-grid">
+        <div className="field"><label>Current passcode</label><input type="password" value={current} onChange={e => setCurrent(e.target.value)} /></div>
+        <div className="field"><label>New passcode</label><input type="password" value={next} onChange={e => setNext(e.target.value)} placeholder="At least 4 characters" /></div>
+        <button className="button primary full" disabled={saving} style={{ gridColumn: '1 / -1' }}><KeyRound size={15} /> {saving ? 'Saving...' : 'Update passcode'}</button>
+      </form>
+    </div></>;
+}
+
+function SellingStaffPanel({ auth, onLock, onBack, notify }: { auth: { phone: string; passcode: string; name: string }; onLock: () => void; onBack: () => void; notify: (m: string) => void }) {
+  const [tab, setTab] = useState<'sell' | 'products' | 'mysales'>('sell');
+  const [products, setProducts] = useState<SellingProduct[]>([]);
+  const [mySales, setMySales] = useState<SellingSale[]>([]);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [p, s] = await Promise.all([
+      supabase.from('selling_products').select('*').eq('active', true).order('name', { ascending: true }),
+      supabase.rpc('selling_staff_list_sales', { p_staff_passcode: auth.passcode, p_phone: auth.phone }),
+    ]);
+    setProducts((p.data as SellingProduct[]) ?? []); setMySales((s.data as SellingSale[]) ?? []); setLoading(false);
+  }, [auth.passcode, auth.phone]);
+  useEffect(() => { void load(); }, [load]);
+  return <><Header onBack={onBack} /><div className="shell"><aside className="sidebar" style={{ position: 'static' }}>
+    <div className="side-label">Selling desk · {auth.name}</div>
+    <nav className="nav">
+      {([['sell', 'Record a sale', CircleDollarSign], ['products', 'Products', Dumbbell], ['mysales', 'My sales', Wallet]] as const).map(([key, label, Icon]) =>
+        <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><Icon size={16} />{label}</button>)}
+    </nav>
+    <div style={{ marginTop: 24, padding: '0 14px' }}><button onClick={onLock} className="button ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 11 }}><Lock size={13} /> Log out</button></div>
+  </aside><main className="content">
+    {tab === 'sell' && <RecordSale auth={auth} products={products} notify={notify} onSaved={load} />}
+    {tab === 'products' && <StaffProducts auth={auth} products={products} notify={notify} onRefresh={load} />}
+    {tab === 'mysales' && <>
+      <div className="page-head"><div><p className="eyebrow">My activity</p><h1 className="title">My sales</h1></div></div>
+      <div className="card"><div className="card-title">Recent <span>{mySales.length}</span></div>
+        {loading ? <div className="empty">Loading...</div> : mySales.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Qty</th><th>Paid</th><th>Due</th></tr></thead><tbody>{mySales.map(s => <tr key={s.id}><td>{s.sale_date}</td><td>{s.customer_name}</td><td>{s.product_name}</td><td>{s.quantity}</td><td>{money(s.paid_amount)}</td><td style={s.due_amount > 0 ? { color: 'var(--red)' } : undefined}>{money(s.due_amount)}</td></tr>)}</tbody></table></div> : <div className="empty">No sales recorded yet.</div>}
+      </div>
+    </>}
+  </main></div></>;
+}
+
+function RecordSale({ auth, products, notify, onSaved }: { auth: { phone: string; passcode: string; name: string }; products: SellingProduct[]; notify: (m: string) => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ customerName: '', customerMobile: '', customerAddress: '', productId: '', quantity: '1', tier: 'Retail', unitPrice: '', paid: '', paymentMode: 'Cash', dueDate: '' });
+  const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const selected = products.find(p => p.id === form.productId);
+  const tierPrice = (p: SellingProduct | undefined, tier: string) => !p ? 0 : tier === 'Wholesale' ? p.wholesale_price : tier === 'Distributor' ? p.distributor_price : p.mrp;
+  const pickProduct = (id: string) => { const p = products.find(x => x.id === id); setForm(f => ({ ...f, productId: id, unitPrice: p ? String(tierPrice(p, f.tier)) : f.unitPrice })); };
+  const pickTier = (tier: string) => { setForm(f => ({ ...f, tier, unitPrice: selected ? String(tierPrice(selected, tier)) : f.unitPrice })); };
+  const captureLocation = () => {
+    if (!navigator.geolocation) { notify('Location is not available on this device.'); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocating(false); notify('Location captured.'); },
+      () => { setLocating(false); notify('Could not get location — continuing without it.'); },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+  const gross = selected ? Number(form.unitPrice || 0) * Number(form.quantity || 0) : 0;
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.customerName.trim() || !form.productId || !form.unitPrice) { notify('Customer name, product, and price are required.'); return; }
+    setSaving(true);
+    const { error } = await supabase.rpc('selling_staff_record_sale', {
+      p_staff_passcode: auth.passcode, p_phone: auth.phone,
+      p_customer_name: form.customerName, p_customer_mobile: form.customerMobile || null, p_customer_address: form.customerAddress || null,
+      p_customer_photo_url: null, p_location_lat: location?.lat ?? null, p_location_lng: location?.lng ?? null,
+      p_product_id: form.productId, p_quantity: Number(form.quantity), p_customer_tier: form.tier,
+      p_unit_price: Number(form.unitPrice), p_paid_amount: Number(form.paid || gross), p_payment_due_date: form.dueDate || null, p_payment_mode: form.paymentMode,
+    });
+    setSaving(false);
+    if (error) { notify('Could not record that sale.'); return; }
+    notify(`Sale to ${form.customerName} recorded.`);
+    setForm({ customerName: '', customerMobile: '', customerAddress: '', productId: '', quantity: '1', tier: 'Retail', unitPrice: '', paid: '', paymentMode: 'Cash', dueDate: '' });
+    setLocation(null); onSaved();
+  };
+  return <>
+    <div className="page-head"><div><p className="eyebrow">New transaction</p><h1 className="title">Record a sale</h1></div></div>
+    <div className="card" style={{ maxWidth: 560 }}>
+      <form onSubmit={submit} className="form-grid">
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Customer name</label><input required value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} /></div>
+        <div className="field"><label>Mobile</label><input value={form.customerMobile} onChange={e => setForm(f => ({ ...f, customerMobile: e.target.value }))} /></div>
+        <div className="field"><label>Address</label><input value={form.customerAddress} onChange={e => setForm(f => ({ ...f, customerAddress: e.target.value }))} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Product</label><select required value={form.productId} onChange={e => pickProduct(e.target.value)}><option value="">Select a product</option>{products.map(p => <option key={p.id} value={p.id}>{p.name} {p.unit_size ? `(${p.unit_size})` : ''} — stock {p.stock}</option>)}</select></div>
+        <div className="field"><label>Customer tier</label><select value={form.tier} onChange={e => pickTier(e.target.value)}><option>Retail</option><option>Wholesale</option><option>Distributor</option></select></div>
+        <div className="field"><label>Quantity</label><input type="number" min={1} value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} /></div>
+        <div className="field"><label>Unit price (₹)</label><input type="number" value={form.unitPrice} onChange={e => setForm(f => ({ ...f, unitPrice: e.target.value }))} /></div>
+        <div className="field"><label>Amount paid now (₹)</label><input type="number" value={form.paid} onChange={e => setForm(f => ({ ...f, paid: e.target.value }))} placeholder={String(gross || 0)} /></div>
+        <div className="field"><label>Payment mode</label><select value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value }))}><option>Cash</option><option>UPI</option><option>Card</option><option>Credit</option></select></div>
+        <div className="field"><label>Payment due date (if any)</label><input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <button type="button" className="button ghost full" onClick={captureLocation} disabled={locating}><Radio size={15} /> {locating ? 'Locating...' : location ? 'Location captured ✓' : 'Capture sale location (optional)'}</button>
+        </div>
+        {gross > 0 && <p className="sub" style={{ gridColumn: '1 / -1', margin: 0 }}>Total: <b>{money(gross)}</b></p>}
+        <button className="button primary full" disabled={saving} style={{ gridColumn: '1 / -1' }}><CircleDollarSign size={15} /> {saving ? 'Recording...' : 'Record sale'}</button>
+      </form>
+    </div>
+  </>;
+}
+
+function StaffProducts({ auth, products, notify, onRefresh }: { auth: { phone: string; passcode: string; name: string }; products: SellingProduct[]; notify: (m: string) => void; onRefresh: () => void }) {
+  const [form, setForm] = useState({ id: null as string | null, name: '', category: '', unitSize: '', mrp: '0', wholesale: '0', distributor: '0', stock: '0', description: '', benefits: '', warnings: '' });
+  const [saving, setSaving] = useState(false);
+  const resetForm = () => setForm({ id: null, name: '', category: '', unitSize: '', mrp: '0', wholesale: '0', distributor: '0', stock: '0', description: '', benefits: '', warnings: '' });
+  const edit = (p: SellingProduct) => setForm({ id: p.id, name: p.name, category: p.category ?? '', unitSize: p.unit_size ?? '', mrp: String(p.mrp), wholesale: String(p.wholesale_price), distributor: String(p.distributor_price), stock: String(p.stock), description: p.description ?? '', benefits: p.benefits ?? '', warnings: p.warnings ?? '' });
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { notify('Product name is required.'); return; }
+    setSaving(true);
+    const { error } = await supabase.rpc('selling_staff_upsert_product', {
+      p_staff_passcode: auth.passcode, p_phone: auth.phone, p_id: form.id,
+      p_name: form.name, p_category: form.category || null, p_unit_size: form.unitSize || null,
+      p_mrp: Number(form.mrp), p_wholesale: Number(form.wholesale), p_distributor: Number(form.distributor),
+      p_stock: Number(form.stock), p_description: form.description || null, p_benefits: form.benefits || null, p_warnings: form.warnings || null, p_image_url: null,
+    });
+    setSaving(false);
+    if (error) { notify('Could not save that product.'); return; }
+    notify(form.id ? 'Product updated.' : 'Product added.'); resetForm(); onRefresh();
+  };
+  return <>
+    <div className="page-head"><div><p className="eyebrow">Catalog</p><h1 className="title">Products</h1></div></div>
+    <div className="grid layout-2">
+      <div className="card"><div className="card-title">{form.id ? 'Edit product' : 'Add product'}</div>
+        <form onSubmit={submit} className="form-grid">
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Name</label><input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+          <div className="field"><label>Category</label><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} /></div>
+          <div className="field"><label>Unit size</label><input value={form.unitSize} onChange={e => setForm(f => ({ ...f, unitSize: e.target.value }))} placeholder="e.g. 1kg" /></div>
+          <div className="field"><label>MRP (retail, ₹)</label><input type="number" value={form.mrp} onChange={e => setForm(f => ({ ...f, mrp: e.target.value }))} /></div>
+          <div className="field"><label>Wholesale price (₹)</label><input type="number" value={form.wholesale} onChange={e => setForm(f => ({ ...f, wholesale: e.target.value }))} /></div>
+          <div className="field"><label>Distributor price (₹)</label><input type="number" value={form.distributor} onChange={e => setForm(f => ({ ...f, distributor: e.target.value }))} /></div>
+          <div className="field"><label>Stock</label><input type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} /></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Description</label><textarea rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Benefits</label><textarea rows={2} value={form.benefits} onChange={e => setForm(f => ({ ...f, benefits: e.target.value }))} /></div>
+          <div className="field" style={{ gridColumn: '1 / -1' }}><label>Warnings</label><textarea rows={2} value={form.warnings} onChange={e => setForm(f => ({ ...f, warnings: e.target.value }))} /></div>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
+            <button className="button primary full" disabled={saving} style={{ flex: 1 }}><Dumbbell size={15} /> {saving ? 'Saving...' : form.id ? 'Save changes' : 'Add product'}</button>
+            {form.id && <button type="button" className="button ghost" onClick={resetForm}>Cancel</button>}
+          </div>
+        </form>
+      </div>
+      <div className="card"><div className="card-title">Catalog <span>{products.length}</span></div>
+        {products.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Product</th><th>MRP</th><th>Stock</th><th></th></tr></thead><tbody>{products.map(p => <tr key={p.id}><td><b>{p.name}</b>{p.unit_size && <div className="muted" style={{ fontSize: 11 }}>{p.unit_size}</div>}</td><td>{money(p.mrp)}</td><td style={p.stock <= p.reorder_threshold ? { color: 'var(--red)' } : undefined}>{p.stock}</td><td><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => edit(p)}><Settings size={13} /></button></td></tr>)}</tbody></table></div> : <div className="empty">No products yet — add the first one.</div>}
+      </div>
+    </div>
+  </>;
+}
+
 function PublicSignup() {
   const [form, setForm] = useState({
     name: '', mobile: '', whatsapp: '', email: '', dob: '', gender: 'Male', bloodGroup: '', maritalStatus: '',
