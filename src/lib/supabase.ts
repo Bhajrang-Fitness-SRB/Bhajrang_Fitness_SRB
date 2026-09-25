@@ -30,6 +30,8 @@ export type Member = {
   height_cm: number | null;
   weight_kg: number | null;
   medical_conditions: string | null;
+  workout_pt_unlocked: boolean;
+  workout_prep_unlocked: boolean;
 };
 
 export type PendingApproval = {
@@ -93,6 +95,34 @@ export type Billing = {
   expiry_date: string | null;
   payment_method: string | null;
 };
+
+export type WorkoutExerciseRow = {
+  id: string;
+  name: string;
+  tier: 'basic' | 'pt' | 'prep';
+  category: string | null;
+  muscle_group: string | null;
+  equipment: string | null;
+  gif_url: string | null;
+  instructions: string | null;
+  posture_tips: string | null;
+  active: boolean;
+  created_at: string | null;
+};
+
+export type WorkoutPlanRow = {
+  id: string;
+  name: string;
+  tier: 'basic' | 'pt' | 'prep';
+  description: string | null;
+  structure: WorkoutDayStruct[];
+  created_by: string | null;
+  active: boolean;
+  created_at: string | null;
+};
+
+export type WorkoutExerciseStruct = { exercise_id: string; sets: string; reps: string; weight_direction: string; rest_seconds: string; notes: string };
+export type WorkoutDayStruct = { day_number: number; day_label: string; exercises: WorkoutExerciseStruct[] };
 
 export type Lead = {
   id: string;

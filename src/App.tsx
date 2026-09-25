@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
-import { Activity, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Menu, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, UserCheck, UserPlus, Users, Wallet, X, Zap } from 'lucide-react';
+import { Activity, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Maximize2, Menu, Minus, Plus, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, Upload, UserCheck, UserPlus, Users, Wallet, X, Zap } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import jsQR from 'jsqr';
 import Papa from 'papaparse';
-import { supabase, type AttendanceLog, type Billing, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff } from './lib/supabase';
+import { supabase, type AttendanceLog, type Billing, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff, type WorkoutDayStruct, type WorkoutExerciseRow, type WorkoutExerciseStruct, type WorkoutPlanRow } from './lib/supabase';
 
 type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling';
-type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers' | 'leads';
+type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers' | 'leads' | 'workouts';
 const VILLAIN_SESSION_KEY = 'rbf_villain_unlocked';
 const ADMIN_SESSION_KEY = 'rbf_admin_pass';
 
@@ -106,7 +106,7 @@ function Admin({ passcode, onLock, notify }: { passcode: string; onLock: () => v
    setPending(p=>p.filter(x=>x.id!==id));
    notify(`${item.name||'Warrior'} approved and vault created.`);pingTelegram(`✅ Approved: ${item.name||'Warrior'} — application #${id}.`);sendCloudEmail(item.email||'',item.name||'Warrior','Welcome to Bhajrang Fitness!',`Hi ${item.name||'there'},\n\nYour membership at Bhajrang Fitness has been approved. Log in at the Warrior app with your ID and passcode (sent separately) to see your gate pass, membership status, and more.\n\nSee you at the gym!\nTeam Bhajrang Fitness`);void load();return true
  };
- return <><Header/><button className="mobile-menu-btn" onClick={()=>setNavOpen(true)}><Menu size={18}/> Menu</button><div className="shell">{navOpen&&<div className="nav-backdrop" onClick={()=>setNavOpen(false)}/>}<aside className={navOpen?'sidebar open':'sidebar'}><button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button><div className="side-label">Reception desk</div><nav className="nav">{([['overview','Overview',LayoutDashboard],['attendance','Manual Attendance',UserCheck],['join','New Member / Join',UserPlus],['approvals','Approvals',Bell],['members','Warriors',Users],['reminders','Due & Birthday Reminders',Bell],['notices','Notices & Freeze',Bell],['billing','Billing',CreditCard],['expenses','Expenses',Wallet],['inventory','Store Inventory',Dumbbell],['leads','Leads & Recovery',Search],['diary','Diary',FileText],['flyers','Flyer Studio',Sparkles],['ai','Omni AI Hub',Sparkles]] as const).map(([key,label,Icon])=><button key={key} className={tab===key?'active':''} onClick={()=>selectTab(key)}><Icon size={16}/>{label}{key==='approvals'&&pending.length>0&&<span className="pill red" style={{marginLeft:'auto',padding:'3px 6px'}}>{pending.length}</span>}</button>)}</nav><div style={{marginTop:24,padding:'0 14px',display:'flex',flexDirection:'column',gap:8}}><a href="/villain" className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Skull size={13}/> Owner vault</a><button onClick={onLock} className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Lock size={13}/> Lock desk</button></div><div style={{marginTop:16,padding:'0 14px',color:'#607083',fontSize:11,lineHeight:1.6}}>Live sync active<br/><span style={{color:'#36d8d3'}}>Polling every 10 seconds</span></div><img src="/brand/team-badge.png" alt="RB Warriors" className="team-badge-mini" /></aside><main className="content">{tab==='overview'&&<Overview loading={loading} members={members} pending={pending} active={active} present={present} dueCount={dueCount} renewalsSoon={renewalsSoon} birthdaysSoon={birthdaysSoon} onApprovals={()=>selectTab('approvals')} onRefresh={load}/>} {tab==='attendance'&&<ManualAttendance members={members} attendance={attendance} notify={notify} onRefresh={load}/>} {tab==='join'&&<JoinMember passcode={passcode} notify={notify} onRefresh={load}/>} {tab==='approvals'&&<Approvals pending={pending} onApprove={finalizeApproval} approvingIds={approvingIds}/>} {tab==='members'&&<Members members={members} passcode={passcode} onRefresh={load} notify={notify}/>} {tab==='reminders'&&<Reminders members={members} billing={billing} notify={notify}/>} {tab==='notices'&&<NoticesDesk notify={notify}/>} {tab==='billing'&&<BillingView billing={billing} members={members} onRefresh={load}/>} {tab==='expenses'&&<Expenses expenses={expenses} onAdd={()=>setShowExpense(true)} onRefresh={load}/>} {tab==='inventory'&&<StoreInventory notify={notify}/>} {tab==='leads'&&<Leads passcode={passcode} notify={notify}/>} {tab==='diary'&&<Diary notify={notify}/>} {tab==='flyers'&&<FlyerStudio notify={notify}/>} {tab==='ai'&&<AIHub members={members} notify={notify}/>}</main></div>{showExpense&&<ExpenseModal onClose={()=>setShowExpense(false)} onSaved={()=>{setShowExpense(false);notify('Expense logged.');void load()}}/>}</>;
+ return <><Header/><button className="mobile-menu-btn" onClick={()=>setNavOpen(true)}><Menu size={18}/> Menu</button><div className="shell">{navOpen&&<div className="nav-backdrop" onClick={()=>setNavOpen(false)}/>}<aside className={navOpen?'sidebar open':'sidebar'}><button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button><div className="side-label">Reception desk</div><nav className="nav">{([['overview','Overview',LayoutDashboard],['attendance','Manual Attendance',UserCheck],['join','New Member / Join',UserPlus],['approvals','Approvals',Bell],['members','Warriors',Users],['reminders','Due & Birthday Reminders',Bell],['notices','Notices & Freeze',Bell],['billing','Billing',CreditCard],['expenses','Expenses',Wallet],['inventory','Store Inventory',Dumbbell],['leads','Leads & Recovery',Search],['workouts','Workout Hub',Dumbbell],['diary','Diary',FileText],['flyers','Flyer Studio',Sparkles],['ai','Omni AI Hub',Sparkles]] as const).map(([key,label,Icon])=><button key={key} className={tab===key?'active':''} onClick={()=>selectTab(key)}><Icon size={16}/>{label}{key==='approvals'&&pending.length>0&&<span className="pill red" style={{marginLeft:'auto',padding:'3px 6px'}}>{pending.length}</span>}</button>)}</nav><div style={{marginTop:24,padding:'0 14px',display:'flex',flexDirection:'column',gap:8}}><a href="/villain" className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Skull size={13}/> Owner vault</a><button onClick={onLock} className="button ghost" style={{width:'100%',justifyContent:'center',fontSize:11}}><Lock size={13}/> Lock desk</button></div><div style={{marginTop:16,padding:'0 14px',color:'#607083',fontSize:11,lineHeight:1.6}}>Live sync active<br/><span style={{color:'#36d8d3'}}>Polling every 10 seconds</span></div><img src="/brand/team-badge.png" alt="RB Warriors" className="team-badge-mini" /></aside><main className="content">{tab==='overview'&&<Overview loading={loading} members={members} pending={pending} active={active} present={present} dueCount={dueCount} renewalsSoon={renewalsSoon} birthdaysSoon={birthdaysSoon} onApprovals={()=>selectTab('approvals')} onRefresh={load}/>} {tab==='attendance'&&<ManualAttendance members={members} attendance={attendance} notify={notify} onRefresh={load}/>} {tab==='join'&&<JoinMember passcode={passcode} notify={notify} onRefresh={load}/>} {tab==='approvals'&&<Approvals pending={pending} onApprove={finalizeApproval} approvingIds={approvingIds}/>} {tab==='members'&&<Members members={members} passcode={passcode} onRefresh={load} notify={notify}/>} {tab==='reminders'&&<Reminders members={members} billing={billing} notify={notify}/>} {tab==='notices'&&<NoticesDesk notify={notify}/>} {tab==='billing'&&<BillingView billing={billing} members={members} onRefresh={load}/>} {tab==='expenses'&&<Expenses expenses={expenses} onAdd={()=>setShowExpense(true)} onRefresh={load}/>} {tab==='inventory'&&<StoreInventory notify={notify}/>} {tab==='leads'&&<Leads passcode={passcode} notify={notify}/>} {tab==='workouts'&&<WorkoutHubShared passcode={passcode} allowedTiers={['basic']} members={members} notify={notify}/>} {tab==='diary'&&<Diary notify={notify}/>} {tab==='flyers'&&<FlyerStudio notify={notify}/>} {tab==='ai'&&<AIHub members={members} notify={notify}/>}</main></div>{showExpense&&<ExpenseModal onClose={()=>setShowExpense(false)} onSaved={()=>{setShowExpense(false);notify('Expense logged.');void load()}}/>}</>;
 }
 
 function Overview(p:{loading:boolean;members:Member[];pending:PendingApproval[];active:number;present:number;dueCount:number;renewalsSoon:number;birthdaysSoon:number;onApprovals:()=>void;onRefresh:()=>void}) { return <><div className="page-head"><div><p className="eyebrow">Reception desk</p><h1 className="title">Good morning.</h1><p className="sub">Today's floor at a glance — financial reports live in the owner vault.</p></div><button className="button" onClick={p.onRefresh}><RefreshCw size={15}/> Sync now</button></div><div className="grid stats"><Stat icon={Users} label="Total warriors" value={p.members.length} foot={`${p.active} active memberships`} color="var(--gold)"/><Stat icon={Activity} label="On floor now" value={p.present} foot="Live attendance" color="var(--cyan)"/><Stat icon={Bell} label="Pending review" value={p.pending.length} foot="Needs your attention" color="var(--red)"/><Stat icon={Clock3} label="Dues to collect" value={p.dueCount} foot="Members with balance" color="var(--gold)"/></div><div className="grid layout-2"><div className="card"><div className="card-title">Renewals due soon <span>Next 7 days</span></div><div className="stat-value" style={{color:'var(--cyan)'}}>{p.renewalsSoon}</div><div className="result-label">Check the Reminders tab to notify them</div></div><div className="card"><div className="card-title">Birthdays this week <span>Send wishes</span></div><div className="stat-value" style={{color:'var(--gold)'}}>{p.birthdaysSoon}</div><div className="result-label">Check the Reminders tab for ready-made messages</div></div></div>{p.pending.length>0&&<div className="card" style={{marginTop:20}}><div className="card-title">Verification queue <span>Action required</span></div>{p.pending.slice(0,4).map(x=><div className="activity-item" style={{marginBottom:16}} key={x.id}><div className="activity-icon" style={{color:'var(--gold)'}}><Clock3 size={15}/></div><div className="activity-copy"><b>{x.name||'Unnamed applicant'}</b><small>{x.mobile} · {x.created_at?new Date(x.created_at).toLocaleDateString():'Recently'}</small></div><span className="pill red" style={{marginLeft:'auto'}}>NEW</span></div>)}<button className="button ghost" onClick={p.onApprovals} style={{width:'100%',justifyContent:'center',marginTop:8}}>Review queue <ArrowRight size={14}/></button></div>}</>; }
@@ -306,7 +306,7 @@ function InstallAppBanner() {
   </>;
   return null;
 }
-function Portal({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){const [memberId,setMemberId]=useState('');const [passcode,setPasscode]=useState('');const [member,setMember]=useState<Member|null>(null);const [loginError,setLoginError]=useState('');const login=async(e:FormEvent)=>{e.preventDefault();setLoginError('');const {data,error}=await supabase.rpc('verify_member_login',{p_member_id:memberId.trim(),p_passcode:passcode.trim()});const row=Array.isArray(data)?data[0]:data;if(error||!row){setLoginError('Warrior ID or passcode not recognised.');return}setMember(row as Member);};return <><Header onBack={onBack}/>{!member?<main className="portal-login"><div className="card"><p className="eyebrow">Warrior portal</p><h1 className="title">Enter the vault.</h1><p className="sub">Use the ID and secret passcode sent when your membership was approved.</p><InstallAppBanner/><form onSubmit={login} style={{marginTop:6}}><div className="field"><label>Warrior ID</label><input required value={memberId} onChange={e=>setMemberId(e.target.value.toUpperCase())} placeholder="e.g. SRB92900001"/></div><div className="field" style={{marginTop:14}}><label>Secret passcode</label><input required type="password" inputMode="numeric" maxLength={4} value={passcode} onChange={e=>setPasscode(e.target.value)} placeholder="4 digits"/></div>{loginError&&<p className="error" style={{fontSize:12}}>{loginError}</p>}<button className="button cyan" style={{width:'100%',justifyContent:'center',marginTop:20}}><LogIn size={15}/> Unlock my portal</button></form><a href="/join" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:14}}><UserPlus size={15}/> New here? Join Bhajrang Fitness</a></div></main>:<MemberPortal member={member} onLogout={()=>setMember(null)} notify={notify}/>}</>}
+function Portal({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){const [memberId,setMemberId]=useState('');const [passcode,setPasscode]=useState('');const [member,setMember]=useState<Member|null>(null);const [loginError,setLoginError]=useState('');const login=async(e:FormEvent)=>{e.preventDefault();setLoginError('');const {data,error}=await supabase.rpc('verify_member_login',{p_member_id:memberId.trim(),p_passcode:passcode.trim()});const row=Array.isArray(data)?data[0]:data;if(error||!row){setLoginError('Warrior ID or passcode not recognised.');return}setMember(row as Member);};return <><Header onBack={onBack}/>{!member?<main className="portal-login"><div className="card"><p className="eyebrow">Warrior portal</p><h1 className="title">Enter the vault.</h1><p className="sub">Use the ID and secret passcode sent when your membership was approved.</p><InstallAppBanner/><form onSubmit={login} style={{marginTop:6}}><div className="field"><label>Warrior ID</label><input required value={memberId} onChange={e=>setMemberId(e.target.value.toUpperCase())} placeholder="e.g. SRB92900001"/></div><div className="field" style={{marginTop:14}}><label>Secret passcode</label><input required type="password" inputMode="numeric" maxLength={4} value={passcode} onChange={e=>setPasscode(e.target.value)} placeholder="4 digits"/></div>{loginError&&<p className="error" style={{fontSize:12}}>{loginError}</p>}<button className="button cyan" style={{width:'100%',justifyContent:'center',marginTop:20}}><LogIn size={15}/> Unlock my portal</button></form><a href="/join" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:14}}><UserPlus size={15}/> New here? Join Bhajrang Fitness</a></div></main>:<MemberPortal member={member} passcode={passcode.trim()} onLogout={()=>setMember(null)} notify={notify}/>}</>}
 
 const WATER_START_MIN = 8*60, WATER_END_MIN = 22*60, WATER_STEP_MIN = 30;
 function waterSlots(): string[] {
@@ -383,18 +383,103 @@ function WaterTracker({weightKg,notify,storageKey}:{weightKg?:number|null;notify
   </div>;
 }
 
-function MemberPortal({member,onLogout,notify}:{member:Member;onLogout:()=>void;notify:(m:string)=>void}){
+function MemberPortal({member,passcode,onLogout,notify}:{member:Member;passcode:string;onLogout:()=>void;notify:(m:string)=>void}){
   const [history,setHistory]=useState<AttendanceLog[]>([]);
   const [showRenew,setShowRenew]=useState(false);
   const [showFreeze,setShowFreeze]=useState(false);
   const [showEdit,setShowEdit]=useState(false);
+  const [showWorkout,setShowWorkout]=useState(false);
   const [notices,setNotices]=useState<{id:string;title:string;body:string}[]>([]);
   const [brochureUrl,setBrochureUrl]=useState('');
   useEffect(()=>{void supabase.from('gym_settings').select('value').eq('key','brochure_url').maybeSingle().then(({data})=>setBrochureUrl(data?.value||''))},[]);
   useEffect(()=>{void supabase.from('attendance_logs').select('*').eq('member_id',member.member_id).order('punch_in_time',{ascending:false}).limit(8).then(({data})=>setHistory(data??[]))},[member.member_id]);
   useEffect(()=>{void supabase.from('notices').select('id,title,body').eq('active',true).order('created_at',{ascending:false}).limit(3).then(({data})=>setNotices(data??[]))},[]);
-  return <><main className="portal"><InstallAppBanner/>{notices.length>0&&<div className="card" style={{marginBottom:18,borderColor:'var(--gold)'}}><div className="card-title"><Bell size={15} color="var(--gold)"/> Gym notices</div>{notices.map(n=><div key={n.id} style={{marginBottom:8}}><b>{n.title}</b>{n.body&&<p className="muted" style={{margin:'2px 0 0'}}>{n.body}</p>}</div>)}</div>}<div className="portal-head"><div><p className="eyebrow">Welcome back, warrior</p><h1 className="title">{member.name||member.member_id}</h1><p className="sub">{member.member_id} · {member.package||'Active member'}</p></div><button className="button ghost" onClick={onLogout}><LogOut size={15}/> Lock vault</button></div><div className="grid portal-grid"><div className="card" style={{textAlign:'center'}}><div className="card-title">Digital gate pass <span>Scan at entrance</span></div><div className="qr"><QRCodeSVG value={member.member_id} size={190}/></div><p className="sub">Show this code to the AI kiosk</p></div><div className="card"><div className="card-title">Membership status <span className="pill">{daysLeft(member.expiry_date)>0?'ACTIVE':'EXPIRED'}</span></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'end'}}><div><div className="stat-value" style={{color:'var(--cyan)'}}>{daysLeft(member.expiry_date)}</div><div className="result-label">days remaining</div></div><Target size={42} color="var(--gold)"/></div><div className="progress"><i style={{width:`${Math.min(100,Math.max(4,daysLeft(member.expiry_date)/30*100))}%`}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:14,fontSize:12}}><span className="muted">Started</span><b>{member.joining_date||'—'}</b><span className="muted">Expires</span><b>{member.expiry_date||'—'}</b></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="button primary" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowRenew(true)}><CreditCard size={15}/> Renew</button><button className="button ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowFreeze(true)}><Clock3 size={15}/> Freeze</button></div><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowEdit(true)}><Settings size={15}/> Update my details</button>{brochureUrl&&<a href={brochureUrl} target="_blank" rel="noreferrer" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}}><FileText size={15}/> Gym brochure & packages</a>}</div><div className="card"><div className="card-title">My recent attendance <span>Last 8 visits</span></div>{history.length?<div className="activity">{history.map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy">{x.punch_in_time?new Date(x.punch_in_time).toLocaleDateString():'—'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''} {x.punch_out_time?`→ ${new Date(x.punch_out_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'(still in)'}</small></div></div>)}</div>:<div className="empty">No visits logged yet.</div>}</div></div><ProgressPhotos memberId={member.member_id} notify={notify}/><WaterTracker weightKg={member.weight_kg} notify={notify} storageKey={`bf_water_${member.member_id}`}/><Calculators notify={notify}/></main>{showRenew&&<RenewModal member={member} onClose={()=>setShowRenew(false)} onSaved={()=>notify('Renewal request sent — pay via the QR shown, or at reception.')}/>}{showFreeze&&<FreezeModal member={member} onClose={()=>setShowFreeze(false)} onSaved={()=>{setShowFreeze(false);notify('Freeze request sent to reception.')}}/>}{showEdit&&<MemberSelfEdit member={member} onClose={()=>setShowEdit(false)} notify={notify}/>}</>;
+  if(showWorkout) return <MyWorkout member={member} passcode={passcode} onBack={()=>setShowWorkout(false)} notify={notify}/>;
+  return <><main className="portal"><InstallAppBanner/>{notices.length>0&&<div className="card" style={{marginBottom:18,borderColor:'var(--gold)'}}><div className="card-title"><Bell size={15} color="var(--gold)"/> Gym notices</div>{notices.map(n=><div key={n.id} style={{marginBottom:8}}><b>{n.title}</b>{n.body&&<p className="muted" style={{margin:'2px 0 0'}}>{n.body}</p>}</div>)}</div>}<div className="portal-head"><div><p className="eyebrow">Welcome back, warrior</p><h1 className="title">{member.name||member.member_id}</h1><p className="sub">{member.member_id} · {member.package||'Active member'}</p></div><button className="button ghost" onClick={onLogout}><LogOut size={15}/> Lock vault</button></div><button className="card" style={{width:'100%',display:'flex',alignItems:'center',gap:14,marginBottom:18,cursor:'pointer',border:'1px solid var(--gold)',background:'linear-gradient(135deg,rgba(255,193,7,0.08),transparent)'}} onClick={()=>setShowWorkout(true)}><div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Dumbbell size={22} color="#0a0e14"/></div><div style={{textAlign:'left',flex:1}}><b style={{fontSize:15}}>My Workout Plan</b><p className="sub" style={{margin:'2px 0 0'}}>Your training schedule with visual movement guides</p></div><ChevronRight size={18}/></button><div className="grid portal-grid"><div className="card" style={{textAlign:'center'}}><div className="card-title">Digital gate pass <span>Scan at entrance</span></div><div className="qr"><QRCodeSVG value={member.member_id} size={190}/></div><p className="sub">Show this code to the AI kiosk</p></div><div className="card"><div className="card-title">Membership status <span className="pill">{daysLeft(member.expiry_date)>0?'ACTIVE':'EXPIRED'}</span></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'end'}}><div><div className="stat-value" style={{color:'var(--cyan)'}}>{daysLeft(member.expiry_date)}</div><div className="result-label">days remaining</div></div><Target size={42} color="var(--gold)"/></div><div className="progress"><i style={{width:`${Math.min(100,Math.max(4,daysLeft(member.expiry_date)/30*100))}%`}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:14,fontSize:12}}><span className="muted">Started</span><b>{member.joining_date||'—'}</b><span className="muted">Expires</span><b>{member.expiry_date||'—'}</b></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="button primary" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowRenew(true)}><CreditCard size={15}/> Renew</button><button className="button ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowFreeze(true)}><Clock3 size={15}/> Freeze</button></div><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowEdit(true)}><Settings size={15}/> Update my details</button>{brochureUrl&&<a href={brochureUrl} target="_blank" rel="noreferrer" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}}><FileText size={15}/> Gym brochure & packages</a>}</div><div className="card"><div className="card-title">My recent attendance <span>Last 8 visits</span></div>{history.length?<div className="activity">{history.map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy">{x.punch_in_time?new Date(x.punch_in_time).toLocaleDateString():'—'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''} {x.punch_out_time?`→ ${new Date(x.punch_out_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'(still in)'}</small></div></div>)}</div>:<div className="empty">No visits logged yet.</div>}</div></div><ProgressPhotos memberId={member.member_id} notify={notify}/><WaterTracker weightKg={member.weight_kg} notify={notify} storageKey={`bf_water_${member.member_id}`}/><Calculators notify={notify}/></main>{showRenew&&<RenewModal member={member} onClose={()=>setShowRenew(false)} onSaved={()=>notify('Renewal request sent — pay via the QR shown, or at reception.')}/>}{showFreeze&&<FreezeModal member={member} onClose={()=>setShowFreeze(false)} onSaved={()=>{setShowFreeze(false);notify('Freeze request sent to reception.')}}/>}{showEdit&&<MemberSelfEdit member={member} onClose={()=>setShowEdit(false)} notify={notify}/>}</>;
 }
+function MyWorkout({member,passcode,onBack,notify}:{member:Member;passcode:string;onBack:()=>void;notify:(m:string)=>void}){
+  type Ex={exercise_id:string;name:string;gif_url:string|null;category:string|null;muscle_group:string|null;instructions:string|null;posture_tips:string|null;sets:string;reps:string;weight_direction:string;rest_seconds:string;notes:string};
+  type Day={day_number:number|string;day_label:string;exercises:Ex[]};
+  type Plan={plan_id:string;name:string;description:string|null;days:Day[]};
+  const [loading,setLoading]=useState(true);
+  const [tiers,setTiers]=useState<string[]>([]);
+  const [plans,setPlans]=useState<Partial<Record<'basic'|'pt'|'prep',Plan>>>({});
+  const [tier,setTier]=useState<'basic'|'pt'|'prep'>('basic');
+  const [dayIdx,setDayIdx]=useState(0);
+  const [modalEx,setModalEx]=useState<Ex|null>(null);
+  const load=useCallback(async()=>{
+    setLoading(true);
+    const {data,error}=await supabase.rpc('warrior_get_my_workout',{p_member_id:member.member_id,p_passcode:passcode});
+    if(!error&&data){setTiers((data.tiers_unlocked as string[])??['basic']);setPlans((data.plans as typeof plans)??{});}
+    setLoading(false);
+  },[member.member_id,passcode]);
+  useEffect(()=>{void load()},[load]);
+  const availableTabs=(['basic','pt','prep'] as const).filter(t=>tiers.includes(t));
+  const plan=plans[tier];
+  const day=plan?.days?.[dayIdx];
+  return <><Header onBack={onBack}/><main className="portal" style={{maxWidth:720}}>
+    <div className="portal-head"><div><p className="eyebrow">Training</p><h1 className="title">My Workout Plan</h1><p className="sub">Tap any exercise to see the full movement guide.</p></div><button className="button ghost" onClick={onBack}><ArrowLeft size={15}/> Back</button></div>
+    {loading?<div className="empty">Loading your plan...</div>:<>
+      <div style={{display:'flex',gap:6,marginBottom:16}}>
+        {availableTabs.map(t=><button key={t} className={tier===t?'button primary':'button ghost'} style={{fontSize:12}} onClick={()=>{setTier(t);setDayIdx(0)}}>{t==='basic'?'Basic':t==='pt'?'PT (Personal Training)':'Prep (Athlete/Bodybuilder)'}</button>)}
+      </div>
+      {!plan?<div className="card empty" style={{textAlign:'center',padding:'40px 20px'}}><Dumbbell size={28} style={{marginBottom:10,opacity:0.5}}/><br/>{tier==='basic'?'No basic plan has been assigned yet — ask reception.':`No ${tier.toUpperCase()} plan assigned yet.`}</div>:<>
+        <div className="card" style={{marginBottom:16}}>
+          <div className="card-title">{plan.name}<span>{plan.days.length} day{plan.days.length===1?'':'s'}</span></div>
+          {plan.description&&<p className="sub" style={{margin:'4px 0 12px'}}>{plan.description}</p>}
+          <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:4}}>
+            {plan.days.map((d,i)=><button key={i} className={i===dayIdx?'button primary':'button ghost'} style={{fontSize:12,whiteSpace:'nowrap',flexShrink:0}} onClick={()=>setDayIdx(i)}>{d.day_label}</button>)}
+          </div>
+        </div>
+        {day&&(day.exercises.length?<div className="grid" style={{gap:12}}>
+          {day.exercises.map((ex,i)=><button key={i} className="card" style={{display:'flex',alignItems:'center',gap:14,textAlign:'left',cursor:'pointer',width:'100%'}} onClick={()=>setModalEx(ex)}>
+            {ex.gif_url?<img src={ex.gif_url} alt={ex.name} style={{width:64,height:64,objectFit:'cover',borderRadius:10,flexShrink:0}}/>:<div style={{width:64,height:64,borderRadius:10,background:'rgba(255,255,255,0.05)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Dumbbell size={22}/></div>}
+            <div style={{flex:1}}><b>{ex.name}</b><div className="muted" style={{fontSize:12,marginTop:2}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.rest_seconds?` · ${ex.rest_seconds}s rest`:''}</div></div>
+            <Maximize2 size={16} className="muted"/>
+          </button>)}
+        </div>:<div className="empty">Rest day — no exercises scheduled.</div>)}
+      </>}
+    </>}
+  </main>{modalEx&&<WorkoutGifModal ex={modalEx} member={member} passcode={passcode} tier={tier} plan={plan} dayNumber={Number(day?.day_number)||1} onClose={()=>setModalEx(null)} notify={notify}/>}</>;
+}
+
+function WorkoutGifModal({ex,member,passcode,tier,plan,dayNumber,onClose,notify}:{ex:{exercise_id:string;name:string;gif_url:string|null;instructions:string|null;posture_tips:string|null;sets:string;reps:string;weight_direction:string;rest_seconds:string};member:Member;passcode:string;tier:string;plan:{plan_id:string}|undefined;dayNumber:number;onClose:()=>void;notify:(m:string)=>void}){
+  const [setsDone,setSetsDone]=useState(ex.sets||'');
+  const [repsDone,setRepsDone]=useState(ex.reps?.replace(/\D/g,'')||'');
+  const [weightUsed,setWeightUsed]=useState('');
+  const [saving,setSaving]=useState(false);
+  const logIt=async()=>{
+    setSaving(true);
+    const {error}=await supabase.rpc('warrior_log_workout',{p_member_id:member.member_id,p_passcode:passcode,p_exercise_id:ex.exercise_id,p_plan_id:plan?.plan_id??null,p_day_number:dayNumber,p_sets_done:Number(setsDone)||null,p_reps_done:Number(repsDone)||null,p_weight_used:weightUsed?Number(weightUsed):null});
+    setSaving(false);
+    if(error){notify('Could not log that workout.');return}
+    notify(`${ex.name} logged — great work!`);onClose();
+  };
+  return <div className="modal-backdrop" onClick={onClose} style={{zIndex:200}}>
+    <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:480,padding:0,overflow:'hidden'}}>
+      <div style={{position:'relative',background:'#000'}}>
+        {ex.gif_url?<img src={ex.gif_url} alt={ex.name} style={{width:'100%',maxHeight:360,objectFit:'contain',display:'block',margin:'0 auto'}}/>:<div style={{height:220,display:'flex',alignItems:'center',justifyContent:'center'}}><Dumbbell size={40} style={{opacity:0.4}}/></div>}
+        <button className="close" onClick={onClose} style={{position:'absolute',top:10,right:10,background:'rgba(0,0,0,0.5)'}}><X/></button>
+      </div>
+      <div style={{padding:20}}>
+        <h2 style={{margin:'0 0 4px'}}>{ex.name}</h2>
+        <p className="sub" style={{margin:'0 0 14px'}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.rest_seconds?` · rest ${ex.rest_seconds}s`:''}</p>
+        {ex.instructions&&<div style={{marginBottom:12}}><b style={{fontSize:13}}>How to perform</b><p className="sub" style={{margin:'4px 0 0',lineHeight:1.6}}>{ex.instructions}</p></div>}
+        {ex.posture_tips&&<div style={{marginBottom:16}}><b style={{fontSize:13,color:'var(--gold)'}}>Posture correction</b><p className="sub" style={{margin:'4px 0 0',lineHeight:1.6}}>{ex.posture_tips}</p></div>}
+        <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
+          <p className="sub" style={{margin:'0 0 8px',fontWeight:600}}>Log what you actually did</p>
+          <div className="form-grid">
+            <div className="field"><label>Sets done</label><input value={setsDone} onChange={e=>setSetsDone(e.target.value)}/></div>
+            <div className="field"><label>Reps done</label><input value={repsDone} onChange={e=>setRepsDone(e.target.value)}/></div>
+            <div className="field"><label>Weight (kg, optional)</label><input value={weightUsed} onChange={e=>setWeightUsed(e.target.value)} placeholder="e.g. 20"/></div>
+          </div>
+          <button className="button primary full" style={{marginTop:12}} disabled={saving} onClick={logIt}><CheckCircle2 size={15}/> {saving?'Saving...':'Log this workout'}</button>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 function FreezeModal({member,onClose,onSaved}:{member:Member;onClose:()=>void;onSaved:()=>void}){
   const [reason,setReason]=useState('');const [saving,setSaving]=useState(false);
   const submit=async(e:FormEvent)=>{e.preventDefault();setSaving(true);const {error}=await supabase.from('freeze_requests').insert({member_id:member.member_id,reason});setSaving(false);if(!error)onSaved()};
@@ -557,7 +642,7 @@ function VillainGate({ onBack, notify }: { onBack: () => void; notify: (m: strin
 }
 
 function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void; onLock: () => void; notify: (m: string) => void; passcode: string }) {
-  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data'>('overview');
+  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data' | 'workouts'>('overview');
   const [members, setMembers] = useState<Member[]>([]);
   const [billing, setBilling] = useState<Billing[]>([]);
   const [expenses, setExpenses] = useState<{ id: number; expense_name: string | null; amount: number | null; expense_date: string | null }[]>([]);
@@ -585,7 +670,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     <button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button>
     <div className="side-label">Villain vault</div>
     <nav className="nav">
-      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
+      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['workouts','Workout Hub (PT/Prep)',Dumbbell],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
         <button key={key} className={tab===key?'active':''} onClick={()=>{setTab(key);setNavOpen(false)}}><Icon size={16}/>{label}</button>)}
     </nav>
     <button className="button ghost" style={{margin:'20px 14px',width:'calc(100% - 28px)'}} onClick={onLock}><Lock size={14}/> Lock vault</button>
@@ -603,6 +688,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     {tab === 'staff' && <StaffControl staff={staff} passcode={passcode} onRefresh={load} notify={notify} />}
     {tab === 'vault' && <MemberVaultAccess members={members} passcode={passcode} notify={notify} />}
     {tab === 'packages' && <PackageManager passcode={passcode} notify={notify} />}
+    {tab === 'workouts' && <WorkoutHubShared passcode={passcode} allowedTiers={['basic','pt','prep']} members={members} notify={notify} />}
     {tab === 'packages' && <PackageManager passcode={passcode} notify={notify} />}
     {tab === 'settings' && <PaymentSettings passcode={passcode} notify={notify} />}
     {tab === 'finance' && <FinancePlanner billing={billing} expenses={expenses} members={members} />}
@@ -1087,6 +1173,218 @@ function Leads({ passcode, notify }: { passcode: string; notify: (m: string) => 
       {showLapsed && (lapsed.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Member</th><th>Phone</th><th>Expired</th><th></th></tr></thead><tbody>{lapsed.map(m => <tr key={m.member_id}><td><b>{m.name || m.member_id}</b><div className="muted" style={{ fontSize: 11 }}>{m.member_id}</div></td><td>{m.phone || '—'}</td><td>{m.expiry_date || '—'}</td><td><button className="button ghost" style={{ padding: '5px 8px', fontSize: 12 }} onClick={() => addLapsedAsLead(m)}><UserPlus size={13} /> Add to leads</button></td></tr>)}</tbody></table></div> : <div className="empty">No one lapsed 180+ days — good retention.</div>)}
     </div>
   </>;
+}
+
+const TIER_LABEL: Record<string, string> = { basic: 'Basic (Normal package)', pt: 'PT (Personal training)', prep: 'Prep (Athletes & bodybuilders)' };
+const WEIGHT_DIRECTIONS = ['Bodyweight', 'Increase', 'Decrease', 'Maintain'];
+
+async function uploadWorkoutGif(file: File): Promise<string | null> {
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+  const { error } = await supabase.storage.from('workout-gifs').upload(path, file, { contentType: file.type });
+  if (error) return null;
+  return supabase.storage.from('workout-gifs').getPublicUrl(path).data.publicUrl;
+}
+
+function WorkoutHubShared({ passcode, allowedTiers, members, notify }: { passcode: string; allowedTiers: ('basic' | 'pt' | 'prep')[]; members: Member[]; notify: (m: string) => void }) {
+  const [sub, setSub] = useState<'library' | 'plans' | 'assign'>('library');
+  const [tier, setTier] = useState<'basic' | 'pt' | 'prep'>(allowedTiers[0]);
+  const [exercises, setExercises] = useState<WorkoutExerciseRow[]>([]);
+  const [plans, setPlans] = useState<WorkoutPlanRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const loadExercises = useCallback(async (t: string) => {
+    const { data } = await supabase.rpc('admin_list_exercises', { p_passcode: passcode, p_tier: t });
+    setExercises((data as WorkoutExerciseRow[]) ?? []);
+  }, [passcode]);
+  const loadPlans = useCallback(async () => {
+    const { data } = await supabase.rpc('admin_list_workout_plans', { p_passcode: passcode });
+    setPlans((data as WorkoutPlanRow[]) ?? []);
+  }, [passcode]);
+  useEffect(() => { setLoading(true); void Promise.all([loadExercises(tier), loadPlans()]).then(() => setLoading(false)); }, [tier, loadExercises, loadPlans]);
+  const plansForTier = plans.filter(p => p.tier === tier);
+
+  return <>
+    <div className="page-head"><div><p className="eyebrow">{allowedTiers.length > 1 ? 'Owner control' : 'Staff control'}</p><h1 className="title">Workout Plan Hub</h1><p className="sub">Exercise library with GIF guidance, day-by-day plan builder, and student assignment.</p></div></div>
+    <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+      {(['library', 'plans', 'assign'] as const).map(s => <button key={s} className={sub === s ? 'button primary' : 'button ghost'} style={{ fontSize: 12 }} onClick={() => setSub(s)}>{s === 'library' ? 'Exercise library' : s === 'plans' ? 'Plan builder' : 'Assign to student'}</button>)}
+      {allowedTiers.length > 1 && <select value={tier} onChange={e => setTier(e.target.value as 'basic' | 'pt' | 'prep')} style={{ marginLeft: 'auto' }}>{allowedTiers.map(t => <option key={t} value={t}>{TIER_LABEL[t]}</option>)}</select>}
+    </div>
+    {allowedTiers.length === 1 && <p className="muted" style={{ fontSize: 12, marginTop: -10, marginBottom: 14 }}>PT and Prep tiers are owner-only — visible in the Villain Vault.</p>}
+    {loading ? <div className="empty">Loading...</div> : <>
+      {sub === 'library' && <ExerciseLibrary passcode={passcode} tier={tier} exercises={exercises} onRefresh={() => loadExercises(tier)} notify={notify} />}
+      {sub === 'plans' && <PlanBuilderPanel passcode={passcode} tier={tier} exercises={exercises} plans={plansForTier} onRefresh={loadPlans} notify={notify} />}
+      {sub === 'assign' && <AssignPanel passcode={passcode} tier={tier} plans={plansForTier} members={members} notify={notify} />}
+    </>}
+  </>;
+}
+
+function ExerciseLibrary({ passcode, tier, exercises, onRefresh, notify }: { passcode: string; tier: string; exercises: WorkoutExerciseRow[]; onRefresh: () => void; notify: (m: string) => void }) {
+  const blank = { id: null as string | null, name: '', category: '', muscleGroup: '', equipment: '', gifUrl: '', instructions: '', postureTips: '' };
+  const [form, setForm] = useState(blank);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const edit = (x: WorkoutExerciseRow) => setForm({ id: x.id, name: x.name, category: x.category ?? '', muscleGroup: x.muscle_group ?? '', equipment: x.equipment ?? '', gifUrl: x.gif_url ?? '', instructions: x.instructions ?? '', postureTips: x.posture_tips ?? '' });
+  const onFile = async (f: File | null) => {
+    if (!f) return;
+    setUploading(true);
+    const url = await uploadWorkoutGif(f);
+    setUploading(false);
+    if (!url) { notify('Upload failed.'); return; }
+    setForm(x => ({ ...x, gifUrl: url })); notify('GIF uploaded.');
+  };
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { notify('Exercise name is required.'); return; }
+    setSaving(true);
+    const { error } = await supabase.rpc('admin_upsert_exercise', { p_passcode: passcode, p_id: form.id, p_name: form.name, p_tier: tier, p_category: form.category || null, p_muscle_group: form.muscleGroup || null, p_equipment: form.equipment || null, p_gif_url: form.gifUrl || null, p_instructions: form.instructions || null, p_posture_tips: form.postureTips || null });
+    setSaving(false);
+    if (error) { notify('Could not save that exercise.'); return; }
+    notify(form.id ? 'Exercise updated.' : 'Exercise added to the library.'); setForm(blank); onRefresh();
+  };
+  const remove = async (x: WorkoutExerciseRow) => { const { error } = await supabase.rpc('admin_delete_exercise', { p_passcode: passcode, p_id: x.id }); if (error) { notify('Could not delete.'); return; } notify('Exercise removed.'); onRefresh(); };
+  return <div className="grid layout-2">
+    <div className="card"><div className="card-title">{form.id ? 'Edit exercise' : `Add ${TIER_LABEL[tier].split(' ')[0]} exercise`}</div>
+      <form onSubmit={submit} className="form-grid">
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Name</label><input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Push Up" /></div>
+        <div className="field"><label>Category</label><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="Push / Pull / Legs / Core" /></div>
+        <div className="field"><label>Muscle group</label><input value={form.muscleGroup} onChange={e => setForm(f => ({ ...f, muscleGroup: e.target.value }))} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Equipment</label><input value={form.equipment} onChange={e => setForm(f => ({ ...f, equipment: e.target.value }))} placeholder="Bodyweight / Dumbbell / Barbell / Machine" /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Movement GIF</label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input value={form.gifUrl} onChange={e => setForm(f => ({ ...f, gifUrl: e.target.value }))} placeholder="Paste a GIF URL, or upload one" style={{ flex: 1 }} />
+            <label className="button ghost" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}><Upload size={14} /> {uploading ? 'Uploading...' : 'Upload'}<input type="file" accept="image/gif,image/webp,image/png,image/jpeg" style={{ display: 'none' }} onChange={e => onFile(e.target.files?.[0] ?? null)} /></label>
+          </div>
+          {form.gifUrl && <img src={form.gifUrl} alt="preview" style={{ marginTop: 8, maxHeight: 120, borderRadius: 8, border: '1px solid var(--border)' }} />}
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>How to perform (posture / form)</label><textarea rows={3} value={form.instructions} onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))} /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Posture correction tips</label><textarea rows={2} value={form.postureTips} onChange={e => setForm(f => ({ ...f, postureTips: e.target.value }))} placeholder="Common mistakes and how to fix them" /></div>
+        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8 }}>
+          <button className="button primary full" disabled={saving} style={{ flex: 1 }}><Dumbbell size={15} /> {saving ? 'Saving...' : form.id ? 'Save changes' : 'Add to library'}</button>
+          {form.id && <button type="button" className="button ghost" onClick={() => setForm(blank)}>Cancel</button>}
+        </div>
+      </form>
+    </div>
+    <div className="card"><div className="card-title">Library <span>{exercises.length}</span></div>
+      {exercises.length ? <div className="activity">{exercises.map(x => <div className="activity-item" key={x.id}>
+        {x.gif_url ? <img src={x.gif_url} alt={x.name} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div className="activity-icon"><Dumbbell size={15} /></div>}
+        <div className="activity-copy" style={{ flex: 1 }}><b>{x.name}</b><small>{x.category}{x.muscle_group ? ` · ${x.muscle_group}` : ''}{x.equipment ? ` · ${x.equipment}` : ''}</small></div>
+        <div style={{ display: 'flex', gap: 4 }}><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => edit(x)}><Settings size={13} /></button><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => remove(x)}><Trash2 size={13} /></button></div>
+      </div>)}</div> : <div className="empty">No exercises in this tier yet.</div>}
+    </div>
+  </div>;
+}
+
+function PlanBuilderPanel({ passcode, tier, exercises, plans, onRefresh, notify }: { passcode: string; tier: 'basic' | 'pt' | 'prep'; exercises: WorkoutExerciseRow[]; plans: WorkoutPlanRow[]; onRefresh: () => void; notify: (m: string) => void }) {
+  const blankDay = (n: number): WorkoutDayStruct => ({ day_number: n, day_label: `Day ${n}`, exercises: [] });
+  const [id, setId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [days, setDays] = useState<WorkoutDayStruct[]>([blankDay(1)]);
+  const [saving, setSaving] = useState(false);
+  const editPlan = (p: WorkoutPlanRow) => { setId(p.id); setName(p.name); setDescription(p.description ?? ''); setDays(p.structure?.length ? p.structure : [blankDay(1)]); };
+  const resetForm = () => { setId(null); setName(''); setDescription(''); setDays([blankDay(1)]); };
+  const addDay = () => setDays(d => [...d, blankDay(d.length + 1)]);
+  const removeDay = (i: number) => setDays(d => d.filter((_, x) => x !== i).map((day, x) => ({ ...day, day_number: x + 1 })));
+  const addExercise = (dayIdx: number) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, exercises: [...day.exercises, { exercise_id: exercises[0]?.id ?? '', sets: '3', reps: '12', weight_direction: 'Bodyweight', rest_seconds: '60', notes: '' }] } : day));
+  const removeExercise = (dayIdx: number, exIdx: number) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, exercises: day.exercises.filter((_, x) => x !== exIdx) } : day));
+  const updateExercise = (dayIdx: number, exIdx: number, patch: Partial<WorkoutExerciseStruct>) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, exercises: day.exercises.map((ex, x) => x === exIdx ? { ...ex, ...patch } : ex) } : day));
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { notify('Plan name is required.'); return; }
+    if (!exercises.length) { notify(`Add at least one exercise to the ${tier} library first.`); return; }
+    setSaving(true);
+    const { error } = await supabase.rpc('admin_upsert_workout_plan', { p_passcode: passcode, p_id: id, p_name: name, p_tier: tier, p_description: description || null, p_structure: days, p_created_by: null });
+    setSaving(false);
+    if (error) { notify('Could not save that plan.'); return; }
+    notify(id ? 'Plan updated.' : 'Plan created.'); resetForm(); onRefresh();
+  };
+  const remove = async (p: WorkoutPlanRow) => { const { error } = await supabase.rpc('admin_delete_workout_plan', { p_passcode: passcode, p_id: p.id }); if (error) { notify('Could not delete that plan.'); return; } notify('Plan removed.'); onRefresh(); };
+  return <div className="grid layout-2">
+    <div className="card"><div className="card-title">{id ? 'Edit plan' : `New ${TIER_LABEL[tier].split(' ')[0]} plan`}</div>
+      <form onSubmit={submit} className="form-grid">
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Plan name</label><input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Free-hand to Push/Pull Mix — 4 Day" /></div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}><label>Description</label><textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} /></div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          {days.map((day, dIdx) => <div key={dIdx} className="card" style={{ marginBottom: 12, background: 'rgba(255,255,255,0.02)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <input value={day.day_label} onChange={e => setDays(d => d.map((x, i) => i === dIdx ? { ...x, day_label: e.target.value } : x))} style={{ fontWeight: 700, flex: 1 }} />
+              <button type="button" className="button ghost" style={{ padding: '5px 8px' }} onClick={() => addExercise(dIdx)}><Plus size={13} /> Exercise</button>
+              {days.length > 1 && <button type="button" className="button ghost" style={{ padding: '5px 8px' }} onClick={() => removeDay(dIdx)}><Trash2 size={13} /></button>}
+            </div>
+            {day.exercises.length === 0 && <p className="muted" style={{ fontSize: 12 }}>No exercises yet — tap "Exercise" to add one.</p>}
+            {day.exercises.map((ex, eIdx) => <div key={eIdx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+              <select value={ex.exercise_id} onChange={e => updateExercise(dIdx, eIdx, { exercise_id: e.target.value })}>{exercises.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+              <input value={ex.sets} onChange={e => updateExercise(dIdx, eIdx, { sets: e.target.value })} placeholder="Sets" />
+              <input value={ex.reps} onChange={e => updateExercise(dIdx, eIdx, { reps: e.target.value })} placeholder="Reps" />
+              <select value={ex.weight_direction} onChange={e => updateExercise(dIdx, eIdx, { weight_direction: e.target.value })}>{WEIGHT_DIRECTIONS.map(w => <option key={w}>{w}</option>)}</select>
+              <input value={ex.rest_seconds} onChange={e => updateExercise(dIdx, eIdx, { rest_seconds: e.target.value })} placeholder="Rest (s)" />
+              <button type="button" className="button ghost" style={{ padding: '5px 7px' }} onClick={() => removeExercise(dIdx, eIdx)}><Minus size={13} /></button>
+            </div>)}
+          </div>)}
+          <button type="button" className="button ghost full" style={{ justifyContent: 'center' }} onClick={addDay}><Plus size={14} /> Add another day</button>
+        </div>
+        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, marginTop: 6 }}>
+          <button className="button primary full" disabled={saving} style={{ flex: 1 }}><ClipboardList size={15} /> {saving ? 'Saving...' : id ? 'Save plan' : 'Create plan'}</button>
+          {id && <button type="button" className="button ghost" onClick={resetForm}>Cancel</button>}
+        </div>
+      </form>
+    </div>
+    <div className="card"><div className="card-title">{TIER_LABEL[tier]} plans <span>{plans.length}</span></div>
+      {plans.length ? <div className="activity">{plans.map(p => <div className="activity-item" key={p.id}><div className="activity-icon"><ClipboardList size={15} /></div><div className="activity-copy" style={{ flex: 1 }}><b>{p.name}</b><small>{(p.structure ?? []).length} day{(p.structure ?? []).length === 1 ? '' : 's'}{p.description ? ` · ${p.description}` : ''}</small></div><div style={{ display: 'flex', gap: 4 }}><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => editPlan(p)}><Settings size={13} /></button><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => remove(p)}><Trash2 size={13} /></button></div></div>)}</div> : <div className="empty">No plans in this tier yet.</div>}
+    </div>
+  </div>;
+}
+
+function AssignPanel({ passcode, tier, plans, members, notify }: { passcode: string; tier: 'basic' | 'pt' | 'prep'; plans: WorkoutPlanRow[]; members: Member[]; notify: (m: string) => void }) {
+  const [memberId, setMemberId] = useState('');
+  const [planId, setPlanId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [current, setCurrent] = useState<{ id: string; plan_name: string; tier: string; start_date: string; active: boolean }[]>([]);
+  const [logs, setLogs] = useState<{ id: number; exercise_id: string; log_date: string; sets_done: number | null; reps_done: number | null }[]>([]);
+  const loadFor = useCallback(async (id: string) => {
+    if (!id) { setCurrent([]); setLogs([]); return; }
+    const [a, l] = await Promise.all([
+      supabase.rpc('admin_list_member_assignments', { p_passcode: passcode, p_member_id: id }),
+      supabase.rpc('admin_list_workout_logs', { p_passcode: passcode, p_member_id: id }),
+    ]);
+    setCurrent((a.data as typeof current) ?? []); setLogs((l.data as typeof logs) ?? []);
+  }, [passcode]);
+  useEffect(() => { void loadFor(memberId); }, [memberId, loadFor]);
+  const assign = async () => {
+    if (!memberId || !planId) { notify('Pick a student and a plan first.'); return; }
+    setAssigning(true);
+    const { error } = await supabase.rpc('admin_assign_workout_plan', { p_passcode: passcode, p_member_id: memberId, p_plan_id: planId, p_start_date: new Date().toISOString().slice(0, 10), p_assigned_by: 'Admin' });
+    setAssigning(false);
+    if (error) { notify(tier === 'basic' ? 'Could not assign that plan.' : 'Could not assign — this tier requires the owner passcode.'); return; }
+    notify(`${TIER_LABEL[tier].split(' ')[0]} plan assigned.`); void loadFor(memberId);
+  };
+  const setTierUnlock = async (pt: boolean, prep: boolean) => {
+    const { error } = await supabase.rpc('admin_set_member_workout_tier', { p_passcode: passcode, p_member_id: memberId, p_pt_unlocked: pt, p_prep_unlocked: prep });
+    if (error) { notify('Only the owner passcode can change tier access.'); return; }
+    notify('Access updated.');
+  };
+  const member = members.find(m => m.member_id === memberId);
+  return <div className="grid layout-2">
+    <div className="card"><div className="card-title">Assign a {TIER_LABEL[tier].split(' ')[0]} plan</div>
+      <div className="field"><label>Student</label><select value={memberId} onChange={e => setMemberId(e.target.value)}><option value="">Select a student</option>{members.map(m => <option key={m.member_id} value={m.member_id}>{m.name || m.member_id} · {m.member_id}</option>)}</select></div>
+      <div className="field" style={{ marginTop: 14 }}><label>Plan</label><select value={planId} onChange={e => setPlanId(e.target.value)}><option value="">Select a plan</option>{plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+      <button className="button primary" style={{ marginTop: 16, width: '100%', justifyContent: 'center' }} disabled={assigning} onClick={assign}><CheckCircle2 size={15} /> {assigning ? 'Assigning...' : 'Assign plan'}</button>
+      {tier !== 'basic' && <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>Assigning a {tier.toUpperCase()} plan automatically unlocks that tier in {member?.name || 'the student'}'s app.</p>}
+      {member && tier !== 'basic' && <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+        <p className="sub" style={{ margin: '0 0 8px' }}>Manual tier access for {member.name || member.member_id}:</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className={member.workout_pt_unlocked ? 'button primary' : 'button ghost'} style={{ fontSize: 12 }} onClick={() => setTierUnlock(!member.workout_pt_unlocked, member.workout_prep_unlocked ?? false)}>PT {member.workout_pt_unlocked ? '✓' : ''}</button>
+          <button className={member.workout_prep_unlocked ? 'button primary' : 'button ghost'} style={{ fontSize: 12 }} onClick={() => setTierUnlock(member.workout_pt_unlocked ?? false, !member.workout_prep_unlocked)}>Prep {member.workout_prep_unlocked ? '✓' : ''}</button>
+        </div>
+      </div>}
+    </div>
+    <div className="card"><div className="card-title">Current assignments {member ? `· ${member.name || member.member_id}` : ''}</div>
+      {!memberId ? <div className="empty">Select a student to see their plans and activity.</div> : <>
+        {current.length ? <div className="activity" style={{ marginBottom: 16 }}>{current.map(a => <div className="activity-item" key={a.id}><div className="activity-icon"><ClipboardList size={15} /></div><div className="activity-copy"><b>{a.plan_name}</b><small>{TIER_LABEL[a.tier]?.split(' ')[0] ?? a.tier} · since {a.start_date}{a.active ? '' : ' · inactive'}</small></div></div>)}</div> : <p className="muted" style={{ fontSize: 12 }}>No plans assigned yet.</p>}
+        <div className="card-title" style={{ padding: 0, marginBottom: 8 }}>Recent logged workouts <span>{logs.length}</span></div>
+        {logs.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Date</th><th>Sets</th><th>Reps</th></tr></thead><tbody>{logs.slice(0, 15).map(l => <tr key={l.id}><td>{l.log_date}</td><td>{l.sets_done ?? '—'}</td><td>{l.reps_done ?? '—'}</td></tr>)}</tbody></table></div> : <p className="muted" style={{ fontSize: 12 }}>No workouts logged by the student yet.</p>}
+      </>}
+    </div>
+  </div>;
 }
 
 async function compressImageFile(file: File, maxDim = 640, quality = 0.72): Promise<Blob> {
