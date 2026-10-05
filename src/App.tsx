@@ -1050,7 +1050,28 @@ function Reminders({ members, billing, notify }: { members: Member[]; billing: B
       notify('WhatsApp Cloud API rejected the send — check the template is approved in Meta Business.');
     } catch { notify('Could not reach the WhatsApp send function.'); }
   };
-  return <><div className="page-head"><div><p className="eyebrow">Reception follow-ups</p><h1 className="title">Due & Birthday Reminders</h1><p className="sub">WhatsApp, SMS (your own SIM balance), and email — all one-tap, all free, no messaging subscription.</p></div></div><WaterTracker notify={notify} storageKey="bf_water_staff"/>
+  const [testPhone, setTestPhone] = useState('');
+  const [testing, setTesting] = useState(false);
+  const runTest = async () => {
+    if (!testPhone.trim()) { notify('Enter a phone number to test.'); return; }
+    setTesting(true);
+    try {
+      const { data } = await supabase.functions.invoke('send-whatsapp', { body: { to: testPhone, kind: 'test', params: [] } });
+      if (data?.configured === false) notify('Secrets not set yet — add WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in Supabase first.');
+      else if (data?.ok) notify('Test message sent — check WhatsApp on that number.');
+      else notify(`Test failed: ${data?.data?.error?.message || data?.error || 'see function logs for details'}.`);
+    } catch { notify('Could not reach the WhatsApp send function.'); }
+    setTesting(false);
+  };
+  return <><div className="page-head"><div><p className="eyebrow">Reception follow-ups</p><h1 className="title">Due & Birthday Reminders</h1><p className="sub">WhatsApp, SMS (your own SIM balance), and email — all one-tap, all free, no messaging subscription.</p></div></div>
+    <div className="card" style={{ marginBottom: 20 }}><div className="card-title">WhatsApp Cloud API connection test</div>
+      <p className="sub" style={{ margin: '0 0 10px' }}>Sends Meta's default test template (no approval needed) to confirm your token and phone number ID are wired up correctly.</p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input value={testPhone} onChange={e => setTestPhone(e.target.value)} placeholder="10-digit phone to test" style={{ flex: 1 }} />
+        <button className="button primary" disabled={testing} onClick={runTest}><Bell size={14} /> {testing ? 'Sending...' : 'Send test'}</button>
+      </div>
+    </div>
+    <WaterTracker notify={notify} storageKey="bf_water_staff"/>
     <div className="grid layout-2">
       <div className="card"><div className="card-title">Renewals due soon <span>{renewals.length}</span></div>
         {renewals.length ? <div className="activity">{renewals.map(m => { const msg=`Hi ${m.name||'there'}, your Bhajrang Fitness membership expires on ${m.expiry_date}. Renew soon to keep your streak going! 💪`; return <div className="activity-item" key={m.member_id}><div className="activity-icon"><Clock3 size={15}/></div><div className="activity-copy"><b>{m.name||m.member_id}</b><small>{m.phone} · expires in {daysLeft(m.expiry_date)}d ({m.expiry_date})</small></div><div style={{display:'flex',gap:6}}>{m.phone&&<a className="button cyan" style={{padding:'6px 8px'}} title="WhatsApp" href={waLink(m.phone,msg)} target="_blank" rel="noreferrer"><Smartphone size={13}/></a>}{m.phone&&<a className="button ghost" style={{padding:'6px 8px'}} title="SMS (your SIM)" href={smsLink(m.phone,msg)}><MessageSquare size={13}/></a>}{m.email&&<a className="button ghost" style={{padding:'6px 8px'}} title="Email" href={mailLink(m.email,'Membership renewal — Bhajrang Fitness',msg)}><Mail size={13}/></a>}{m.phone&&<button className="button ghost" style={{padding:'6px 8px'}} title="Send automatically via WhatsApp Cloud API" onClick={()=>sendCloud('renewal',m.phone,[m.name||'there',m.expiry_date||''])}><Bell size={13}/></button>}<button className="button ghost" style={{padding:'6px 8px'}} onClick={()=>copy(msg,'Renewal message')}><FileText size={13}/></button></div></div>; })}</div> : <div className="empty">No renewals due in the next two weeks.</div>}
