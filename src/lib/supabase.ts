@@ -121,8 +121,20 @@ export type WorkoutPlanRow = {
   created_at: string | null;
 };
 
-export type WorkoutExerciseStruct = { exercise_id: string; sets: string; reps: string; weight_direction: string; rest_seconds: string; notes: string };
+export type WorkoutExerciseStruct = { exercise_id: string; sets: string; reps: string; weight_direction: string; est_weight: string; rest_seconds: string; notes: string };
 export type WorkoutDayStruct = { day_number: number; day_label: string; exercises: WorkoutExerciseStruct[] };
+
+export type DayTemplateRow = {
+  id: string;
+  name: string;
+  split_family: string;
+  day_position: string | null;
+  level: string;
+  description: string | null;
+  exercises: WorkoutExerciseStruct[];
+  created_by: string | null;
+  created_at: string | null;
+};
 
 export type Lead = {
   id: string;

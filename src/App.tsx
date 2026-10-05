@@ -3,7 +3,7 @@ import { Activity, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3,
 import { QRCodeSVG } from 'qrcode.react';
 import jsQR from 'jsqr';
 import Papa from 'papaparse';
-import { supabase, type AttendanceLog, type Billing, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff, type WorkoutDayStruct, type WorkoutExerciseRow, type WorkoutExerciseStruct, type WorkoutPlanRow } from './lib/supabase';
+import { supabase, type AttendanceLog, type Billing, type DayTemplateRow, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff, type WorkoutDayStruct, type WorkoutExerciseRow, type WorkoutExerciseStruct, type WorkoutPlanRow } from './lib/supabase';
 
 type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling';
 type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers' | 'leads' | 'workouts';
@@ -398,7 +398,7 @@ function MemberPortal({member,passcode,onLogout,notify}:{member:Member;passcode:
   return <><main className="portal"><InstallAppBanner/>{notices.length>0&&<div className="card" style={{marginBottom:18,borderColor:'var(--gold)'}}><div className="card-title"><Bell size={15} color="var(--gold)"/> Gym notices</div>{notices.map(n=><div key={n.id} style={{marginBottom:8}}><b>{n.title}</b>{n.body&&<p className="muted" style={{margin:'2px 0 0'}}>{n.body}</p>}</div>)}</div>}<div className="portal-head"><div><p className="eyebrow">Welcome back, warrior</p><h1 className="title">{member.name||member.member_id}</h1><p className="sub">{member.member_id} · {member.package||'Active member'}</p></div><button className="button ghost" onClick={onLogout}><LogOut size={15}/> Lock vault</button></div><button className="card" style={{width:'100%',display:'flex',alignItems:'center',gap:14,marginBottom:18,cursor:'pointer',border:'1px solid var(--gold)',background:'linear-gradient(135deg,rgba(255,193,7,0.08),transparent)'}} onClick={()=>setShowWorkout(true)}><div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Dumbbell size={22} color="#0a0e14"/></div><div style={{textAlign:'left',flex:1}}><b style={{fontSize:15}}>My Workout Plan</b><p className="sub" style={{margin:'2px 0 0'}}>Your training schedule with visual movement guides</p></div><ChevronRight size={18}/></button><div className="grid portal-grid"><div className="card" style={{textAlign:'center'}}><div className="card-title">Digital gate pass <span>Scan at entrance</span></div><div className="qr"><QRCodeSVG value={member.member_id} size={190}/></div><p className="sub">Show this code to the AI kiosk</p></div><div className="card"><div className="card-title">Membership status <span className="pill">{daysLeft(member.expiry_date)>0?'ACTIVE':'EXPIRED'}</span></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'end'}}><div><div className="stat-value" style={{color:'var(--cyan)'}}>{daysLeft(member.expiry_date)}</div><div className="result-label">days remaining</div></div><Target size={42} color="var(--gold)"/></div><div className="progress"><i style={{width:`${Math.min(100,Math.max(4,daysLeft(member.expiry_date)/30*100))}%`}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:14,fontSize:12}}><span className="muted">Started</span><b>{member.joining_date||'—'}</b><span className="muted">Expires</span><b>{member.expiry_date||'—'}</b></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="button primary" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowRenew(true)}><CreditCard size={15}/> Renew</button><button className="button ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowFreeze(true)}><Clock3 size={15}/> Freeze</button></div><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowEdit(true)}><Settings size={15}/> Update my details</button>{brochureUrl&&<a href={brochureUrl} target="_blank" rel="noreferrer" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}}><FileText size={15}/> Gym brochure & packages</a>}</div><div className="card"><div className="card-title">My recent attendance <span>Last 8 visits</span></div>{history.length?<div className="activity">{history.map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy">{x.punch_in_time?new Date(x.punch_in_time).toLocaleDateString():'—'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''} {x.punch_out_time?`→ ${new Date(x.punch_out_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'(still in)'}</small></div></div>)}</div>:<div className="empty">No visits logged yet.</div>}</div></div><ProgressPhotos memberId={member.member_id} notify={notify}/><WaterTracker weightKg={member.weight_kg} notify={notify} storageKey={`bf_water_${member.member_id}`}/><Calculators notify={notify}/></main>{showRenew&&<RenewModal member={member} onClose={()=>setShowRenew(false)} onSaved={()=>notify('Renewal request sent — pay via the QR shown, or at reception.')}/>}{showFreeze&&<FreezeModal member={member} onClose={()=>setShowFreeze(false)} onSaved={()=>{setShowFreeze(false);notify('Freeze request sent to reception.')}}/>}{showEdit&&<MemberSelfEdit member={member} onClose={()=>setShowEdit(false)} notify={notify}/>}</>;
 }
 function MyWorkout({member,passcode,onBack,notify}:{member:Member;passcode:string;onBack:()=>void;notify:(m:string)=>void}){
-  type Ex={exercise_id:string;name:string;gif_url:string|null;category:string|null;muscle_group:string|null;instructions:string|null;posture_tips:string|null;sets:string;reps:string;weight_direction:string;rest_seconds:string;notes:string};
+  type Ex={exercise_id:string;name:string;gif_url:string|null;category:string|null;muscle_group:string|null;instructions:string|null;posture_tips:string|null;sets:string;reps:string;weight_direction:string;est_weight:string;rest_seconds:string;notes:string};
   type Day={day_number:number|string;day_label:string;exercises:Ex[]};
   type Plan={plan_id:string;name:string;description:string|null;days:Day[]};
   const [loading,setLoading]=useState(true);
@@ -434,7 +434,7 @@ function MyWorkout({member,passcode,onBack,notify}:{member:Member;passcode:strin
         {day&&(day.exercises.length?<div className="grid" style={{gap:12}}>
           {day.exercises.map((ex,i)=><button key={i} className="card" style={{display:'flex',alignItems:'center',gap:14,textAlign:'left',cursor:'pointer',width:'100%'}} onClick={()=>setModalEx(ex)}>
             {ex.gif_url?<img src={ex.gif_url} alt={ex.name} style={{width:64,height:64,objectFit:'cover',borderRadius:10,flexShrink:0}}/>:<div style={{width:64,height:64,borderRadius:10,background:'rgba(255,255,255,0.05)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Dumbbell size={22}/></div>}
-            <div style={{flex:1}}><b>{ex.name}</b><div className="muted" style={{fontSize:12,marginTop:2}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.rest_seconds?` · ${ex.rest_seconds}s rest`:''}</div></div>
+            <div style={{flex:1}}><b>{ex.name}</b><div className="muted" style={{fontSize:12,marginTop:2}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.est_weight?` · ${ex.est_weight}`:''}{ex.rest_seconds?` · ${ex.rest_seconds}s rest`:''}</div></div>
             <Maximize2 size={16} className="muted"/>
           </button>)}
         </div>:<div className="empty">Rest day — no exercises scheduled.</div>)}
@@ -443,7 +443,7 @@ function MyWorkout({member,passcode,onBack,notify}:{member:Member;passcode:strin
   </main>{modalEx&&<WorkoutGifModal ex={modalEx} member={member} passcode={passcode} tier={tier} plan={plan} dayNumber={Number(day?.day_number)||1} onClose={()=>setModalEx(null)} notify={notify}/>}</>;
 }
 
-function WorkoutGifModal({ex,member,passcode,tier,plan,dayNumber,onClose,notify}:{ex:{exercise_id:string;name:string;gif_url:string|null;instructions:string|null;posture_tips:string|null;sets:string;reps:string;weight_direction:string;rest_seconds:string};member:Member;passcode:string;tier:string;plan:{plan_id:string}|undefined;dayNumber:number;onClose:()=>void;notify:(m:string)=>void}){
+function WorkoutGifModal({ex,member,passcode,tier,plan,dayNumber,onClose,notify}:{ex:{exercise_id:string;name:string;gif_url:string|null;instructions:string|null;posture_tips:string|null;sets:string;reps:string;weight_direction:string;est_weight:string;rest_seconds:string};member:Member;passcode:string;tier:string;plan:{plan_id:string}|undefined;dayNumber:number;onClose:()=>void;notify:(m:string)=>void}){
   const [setsDone,setSetsDone]=useState(ex.sets||'');
   const [repsDone,setRepsDone]=useState(ex.reps?.replace(/\D/g,'')||'');
   const [weightUsed,setWeightUsed]=useState('');
@@ -463,7 +463,7 @@ function WorkoutGifModal({ex,member,passcode,tier,plan,dayNumber,onClose,notify}
       </div>
       <div style={{padding:20}}>
         <h2 style={{margin:'0 0 4px'}}>{ex.name}</h2>
-        <p className="sub" style={{margin:'0 0 14px'}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.rest_seconds?` · rest ${ex.rest_seconds}s`:''}</p>
+        <p className="sub" style={{margin:'0 0 14px'}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.est_weight?` · ${ex.est_weight}`:''}{ex.rest_seconds?` · rest ${ex.rest_seconds}s`:''}</p>
         {ex.instructions&&<div style={{marginBottom:12}}><b style={{fontSize:13}}>How to perform</b><p className="sub" style={{margin:'4px 0 0',lineHeight:1.6}}>{ex.instructions}</p></div>}
         {ex.posture_tips&&<div style={{marginBottom:16}}><b style={{fontSize:13,color:'var(--gold)'}}>Posture correction</b><p className="sub" style={{margin:'4px 0 0',lineHeight:1.6}}>{ex.posture_tips}</p></div>}
         <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
@@ -1186,38 +1186,88 @@ async function uploadWorkoutGif(file: File): Promise<string | null> {
 }
 
 function WorkoutHubShared({ passcode, allowedTiers, members, notify }: { passcode: string; allowedTiers: ('basic' | 'pt' | 'prep')[]; members: Member[]; notify: (m: string) => void }) {
-  const [sub, setSub] = useState<'library' | 'plans' | 'assign'>('library');
+  const isOwner = allowedTiers.length > 1;
+  const [sub, setSub] = useState<'library' | 'templates' | 'plans' | 'assign'>(isOwner ? 'library' : 'templates');
   const [tier, setTier] = useState<'basic' | 'pt' | 'prep'>(allowedTiers[0]);
-  const [exercises, setExercises] = useState<WorkoutExerciseRow[]>([]);
+  const [pickerExercises, setPickerExercises] = useState<WorkoutExerciseRow[]>([]);
+  const [libraryExercises, setLibraryExercises] = useState<WorkoutExerciseRow[]>([]);
+  const [templates, setTemplates] = useState<DayTemplateRow[]>([]);
   const [plans, setPlans] = useState<WorkoutPlanRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const loadExercises = useCallback(async (t: string) => {
-    const { data } = await supabase.rpc('admin_list_exercises', { p_passcode: passcode, p_tier: t });
-    setExercises((data as WorkoutExerciseRow[]) ?? []);
+  const loadPicker = useCallback(async () => {
+    const { data } = await supabase.rpc('exercise_picker_list', { p_passcode: passcode });
+    setPickerExercises((data as WorkoutExerciseRow[]) ?? []);
+  }, [passcode]);
+  const loadLibrary = useCallback(async () => {
+    if (!isOwner) return;
+    const { data } = await supabase.rpc('admin_list_exercises', { p_passcode: passcode });
+    setLibraryExercises((data as WorkoutExerciseRow[]) ?? []);
+  }, [passcode, isOwner]);
+  const loadTemplates = useCallback(async () => {
+    const { data } = await supabase.rpc('list_day_templates', { p_passcode: passcode });
+    setTemplates((data as DayTemplateRow[]) ?? []);
   }, [passcode]);
   const loadPlans = useCallback(async () => {
     const { data } = await supabase.rpc('admin_list_workout_plans', { p_passcode: passcode });
     setPlans((data as WorkoutPlanRow[]) ?? []);
   }, [passcode]);
-  useEffect(() => { setLoading(true); void Promise.all([loadExercises(tier), loadPlans()]).then(() => setLoading(false)); }, [tier, loadExercises, loadPlans]);
+  useEffect(() => { setLoading(true); void Promise.all([loadPicker(), loadLibrary(), loadTemplates(), loadPlans()]).then(() => setLoading(false)); }, [loadPicker, loadLibrary, loadTemplates, loadPlans]);
   const plansForTier = plans.filter(p => p.tier === tier);
+  const tabs = isOwner ? (['library', 'templates', 'plans', 'assign'] as const) : (['templates', 'plans', 'assign'] as const);
+  const tabLabel = { library: 'Exercise library', templates: 'Day templates', plans: 'Plan builder', assign: 'Assign to student' };
 
   return <>
-    <div className="page-head"><div><p className="eyebrow">{allowedTiers.length > 1 ? 'Owner control' : 'Staff control'}</p><h1 className="title">Workout Plan Hub</h1><p className="sub">Exercise library with GIF guidance, day-by-day plan builder, and student assignment.</p></div></div>
-    <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-      {(['library', 'plans', 'assign'] as const).map(s => <button key={s} className={sub === s ? 'button primary' : 'button ghost'} style={{ fontSize: 12 }} onClick={() => setSub(s)}>{s === 'library' ? 'Exercise library' : s === 'plans' ? 'Plan builder' : 'Assign to student'}</button>)}
-      {allowedTiers.length > 1 && <select value={tier} onChange={e => setTier(e.target.value as 'basic' | 'pt' | 'prep')} style={{ marginLeft: 'auto' }}>{allowedTiers.map(t => <option key={t} value={t}>{TIER_LABEL[t]}</option>)}</select>}
+    <div className="page-head"><div><p className="eyebrow">{isOwner ? 'Owner control' : 'Staff control'}</p><h1 className="title">Workout Plan Hub</h1><p className="sub">Exercise library with GIF guidance, day-by-day plan builder, and student assignment.</p></div></div>
+    <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+      {tabs.map(s => <button key={s} className={sub === s ? 'button primary' : 'button ghost'} style={{ fontSize: 12 }} onClick={() => setSub(s)}>{tabLabel[s]}</button>)}
+      {isOwner && <select value={tier} onChange={e => setTier(e.target.value as 'basic' | 'pt' | 'prep')} style={{ marginLeft: 'auto' }}>{allowedTiers.map(t => <option key={t} value={t}>{TIER_LABEL[t]}</option>)}</select>}
     </div>
-    {allowedTiers.length === 1 && <p className="muted" style={{ fontSize: 12, marginTop: -10, marginBottom: 14 }}>PT and Prep tiers are owner-only — visible in the Villain Vault.</p>}
+    {!isOwner && <p className="muted" style={{ fontSize: 12, marginTop: -10, marginBottom: 14 }}>The raw exercise library is owner-only. Day templates and the plan builder are shared here.</p>}
     {loading ? <div className="empty">Loading...</div> : <>
-      {sub === 'library' && <ExerciseLibrary passcode={passcode} tier={tier} exercises={exercises} onRefresh={() => loadExercises(tier)} notify={notify} />}
-      {sub === 'plans' && <PlanBuilderPanel passcode={passcode} tier={tier} exercises={exercises} plans={plansForTier} onRefresh={loadPlans} notify={notify} />}
+      {sub === 'library' && isOwner && <ExerciseLibrary passcode={passcode} exercises={libraryExercises} onRefresh={() => { void loadLibrary(); void loadPicker(); }} notify={notify} />}
+      {sub === 'templates' && <TemplateLibrary templates={templates} exercises={pickerExercises} isOwner={isOwner} passcode={passcode} onRefresh={loadTemplates} notify={notify} />}
+      {sub === 'plans' && <PlanBuilderPanel passcode={passcode} tier={tier} exercises={pickerExercises} plans={plansForTier} templates={templates} onRefresh={loadPlans} notify={notify} />}
       {sub === 'assign' && <AssignPanel passcode={passcode} tier={tier} plans={plansForTier} members={members} notify={notify} />}
     </>}
   </>;
 }
 
-function ExerciseLibrary({ passcode, tier, exercises, onRefresh, notify }: { passcode: string; tier: string; exercises: WorkoutExerciseRow[]; onRefresh: () => void; notify: (m: string) => void }) {
+function TemplateLibrary({ templates, exercises, isOwner, passcode, onRefresh, notify }: { templates: DayTemplateRow[]; exercises: WorkoutExerciseRow[]; isOwner: boolean; passcode: string; onRefresh: () => void; notify: (m: string) => void }) {
+  const [filter, setFilter] = useState('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const families = ['all', ...Array.from(new Set(templates.map(t => t.split_family)))];
+  const shown = filter === 'all' ? templates : templates.filter(t => t.split_family === filter);
+  const exName = (id: string) => exercises.find(e => e.id === id)?.name ?? '(exercise removed)';
+  const remove = async (t: DayTemplateRow) => {
+    if (!confirm(`Delete template "${t.name}"?`)) return;
+    const { error } = await supabase.rpc('admin_delete_day_template', { p_passcode: passcode, p_id: t.id });
+    if (error) { notify('Could not delete that template.'); return; }
+    notify('Template deleted.'); onRefresh();
+  };
+  return <>
+    <div style={{ marginBottom: 14 }}>
+      <select value={filter} onChange={e => setFilter(e.target.value)} style={{ minWidth: 220 }}>
+        {families.map(f => <option key={f} value={f}>{f === 'all' ? `All categories (${templates.length})` : f}</option>)}
+      </select>
+    </div>
+    <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>Browse ready-made day blueprints here. To use one, open the Plan Builder, add a day, and tap "Start from a template" on that day.</p>
+    <div className="grid" style={{ gap: 10 }}>
+      {shown.map(t => <div className="card" key={t.id}>
+        <div className="card-title" style={{ cursor: 'pointer' }} onClick={() => setExpanded(x => x === t.id ? null : t.id)}>
+          {t.name}<span>{t.level}{t.day_position ? ` · ${t.day_position}` : ''}</span>
+        </div>
+        {t.description && <p className="sub" style={{ margin: '2px 0 8px' }}>{t.description}</p>}
+        {expanded === t.id && <div className="activity">
+          {t.exercises.map((e, i) => <div className="activity-item" key={i}><div className="activity-icon"><Dumbbell size={14} /></div><div className="activity-copy">{exName(e.exercise_id)}<small>{e.sets} sets × {e.reps} reps · {e.weight_direction}{e.rest_seconds ? ` · ${e.rest_seconds}s rest` : ''}{e.notes ? ` · ${e.notes}` : ''}</small></div></div>)}
+          {isOwner && <button className="button ghost" style={{ marginTop: 8, fontSize: 12 }} onClick={() => remove(t)}><Trash2 size={13} /> Delete template</button>}
+        </div>}
+      </div>)}
+      {shown.length === 0 && <div className="empty">No templates in this category.</div>}
+    </div>
+  </>;
+}
+
+function ExerciseLibrary({ passcode, exercises, onRefresh, notify }: { passcode: string; exercises: WorkoutExerciseRow[]; onRefresh: () => void; notify: (m: string) => void }) {
   const blank = { id: null as string | null, name: '', category: '', muscleGroup: '', equipment: '', gifUrl: '', instructions: '', postureTips: '' };
   const [form, setForm] = useState(blank);
   const [saving, setSaving] = useState(false);
@@ -1235,14 +1285,38 @@ function ExerciseLibrary({ passcode, tier, exercises, onRefresh, notify }: { pas
     e.preventDefault();
     if (!form.name.trim()) { notify('Exercise name is required.'); return; }
     setSaving(true);
-    const { error } = await supabase.rpc('admin_upsert_exercise', { p_passcode: passcode, p_id: form.id, p_name: form.name, p_tier: tier, p_category: form.category || null, p_muscle_group: form.muscleGroup || null, p_equipment: form.equipment || null, p_gif_url: form.gifUrl || null, p_instructions: form.instructions || null, p_posture_tips: form.postureTips || null });
+    const { error } = await supabase.rpc('admin_upsert_exercise', { p_passcode: passcode, p_id: form.id, p_name: form.name, p_tier: 'basic', p_category: form.category || null, p_muscle_group: form.muscleGroup || null, p_equipment: form.equipment || null, p_gif_url: form.gifUrl || null, p_instructions: form.instructions || null, p_posture_tips: form.postureTips || null });
     setSaving(false);
     if (error) { notify('Could not save that exercise.'); return; }
     notify(form.id ? 'Exercise updated.' : 'Exercise added to the library.'); setForm(blank); onRefresh();
   };
   const remove = async (x: WorkoutExerciseRow) => { const { error } = await supabase.rpc('admin_delete_exercise', { p_passcode: passcode, p_id: x.id }); if (error) { notify('Could not delete.'); return; } notify('Exercise removed.'); onRefresh(); };
+  const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState('all');
+  const [importing, setImporting] = useState(false);
+  const categories = Array.from(new Set(exercises.map(x => x.category).filter(Boolean))) as string[];
+  const shown = exercises.filter(x => (catFilter === 'all' || x.category === catFilter) && (!search.trim() || x.name.toLowerCase().includes(search.trim().toLowerCase())));
+  const onCsvFile = async (f: File | null) => {
+    if (!f) return;
+    setImporting(true);
+    Papa.parse(f, {
+      header: true, skipEmptyLines: true,
+      complete: async (res) => {
+        const rows = (res.data as Record<string, string>[]).map(r => ({
+          name: r.name || r.Name || '', category: r.category || r.Category || '', muscle_group: r.muscle_group || r['Muscle Group'] || '',
+          equipment: r.equipment || r.Equipment || '', gif_url: r.gif_url || r['GIF URL'] || r.gif || '', instructions: r.instructions || r.Instructions || '', posture_tips: r.posture_tips || r['Posture Tips'] || '',
+        })).filter(r => r.name.trim());
+        if (!rows.length) { setImporting(false); notify('No valid rows found in that file — need at least a "name" column.'); return; }
+        const { data, error } = await supabase.rpc('admin_bulk_import_exercises', { p_passcode: passcode, p_rows: rows });
+        setImporting(false);
+        if (error) { notify('Import failed.'); return; }
+        notify(`Imported ${data} exercise${data === 1 ? '' : 's'} (new rows added, existing names updated with any GIF/details you provided).`); onRefresh();
+      },
+      error: () => { setImporting(false); notify('Could not read that CSV file.'); },
+    });
+  };
   return <div className="grid layout-2">
-    <div className="card"><div className="card-title">{form.id ? 'Edit exercise' : `Add ${TIER_LABEL[tier].split(' ')[0]} exercise`}</div>
+    <div className="card"><div className="card-title">{form.id ? 'Edit exercise' : 'Add exercise'}</div>
       <form onSubmit={submit} className="form-grid">
         <div className="field" style={{ gridColumn: '1 / -1' }}><label>Name</label><input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Push Up" /></div>
         <div className="field"><label>Category</label><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="Push / Pull / Legs / Core" /></div>
@@ -1262,29 +1336,41 @@ function ExerciseLibrary({ passcode, tier, exercises, onRefresh, notify }: { pas
           {form.id && <button type="button" className="button ghost" onClick={() => setForm(blank)}>Cancel</button>}
         </div>
       </form>
+      <div style={{ borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 14 }}>
+        <div className="card-title" style={{ padding: 0, border: 'none' }}>Bulk import (CSV)</div>
+        <p className="muted" style={{ fontSize: 12, margin: '4px 0 10px' }}>Columns: name (required), category, muscle_group, equipment, gif_url, instructions, posture_tips. New names are added; existing names get their GIF/details filled in without overwriting what's already there unless the new value is non-empty.</p>
+        <label className="button ghost full" style={{ cursor: 'pointer', justifyContent: 'center' }}><Upload size={14} /> {importing ? 'Importing...' : 'Choose CSV file'}<input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={e => onCsvFile(e.target.files?.[0] ?? null)} disabled={importing} /></label>
+      </div>
     </div>
-    <div className="card"><div className="card-title">Library <span>{exercises.length}</span></div>
-      {exercises.length ? <div className="activity">{exercises.map(x => <div className="activity-item" key={x.id}>
+    <div className="card">
+      <div className="card-title">Library <span>{exercises.length}</span></div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name..." style={{ flex: 1 }} />
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)}><option value="all">All categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+      </div>
+      {shown.length ? <div className="activity" style={{ maxHeight: 520, overflowY: 'auto' }}>{shown.map(x => <div className="activity-item" key={x.id}>
         {x.gif_url ? <img src={x.gif_url} alt={x.name} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div className="activity-icon"><Dumbbell size={15} /></div>}
         <div className="activity-copy" style={{ flex: 1 }}><b>{x.name}</b><small>{x.category}{x.muscle_group ? ` · ${x.muscle_group}` : ''}{x.equipment ? ` · ${x.equipment}` : ''}</small></div>
         <div style={{ display: 'flex', gap: 4 }}><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => edit(x)}><Settings size={13} /></button><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => remove(x)}><Trash2 size={13} /></button></div>
-      </div>)}</div> : <div className="empty">No exercises in this tier yet.</div>}
+      </div>)}</div> : <div className="empty">{exercises.length ? 'No exercises match that search.' : 'No exercises in the library yet.'}</div>}
     </div>
   </div>;
 }
 
-function PlanBuilderPanel({ passcode, tier, exercises, plans, onRefresh, notify }: { passcode: string; tier: 'basic' | 'pt' | 'prep'; exercises: WorkoutExerciseRow[]; plans: WorkoutPlanRow[]; onRefresh: () => void; notify: (m: string) => void }) {
+function PlanBuilderPanel({ passcode, tier, exercises, plans, templates, onRefresh, notify }: { passcode: string; tier: 'basic' | 'pt' | 'prep'; exercises: WorkoutExerciseRow[]; plans: WorkoutPlanRow[]; templates: DayTemplateRow[]; onRefresh: () => void; notify: (m: string) => void }) {
   const blankDay = (n: number): WorkoutDayStruct => ({ day_number: n, day_label: `Day ${n}`, exercises: [] });
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [days, setDays] = useState<WorkoutDayStruct[]>([blankDay(1)]);
   const [saving, setSaving] = useState(false);
+  const [templatePicker, setTemplatePicker] = useState<number | null>(null);
   const editPlan = (p: WorkoutPlanRow) => { setId(p.id); setName(p.name); setDescription(p.description ?? ''); setDays(p.structure?.length ? p.structure : [blankDay(1)]); };
   const resetForm = () => { setId(null); setName(''); setDescription(''); setDays([blankDay(1)]); };
   const addDay = () => setDays(d => [...d, blankDay(d.length + 1)]);
   const removeDay = (i: number) => setDays(d => d.filter((_, x) => x !== i).map((day, x) => ({ ...day, day_number: x + 1 })));
-  const addExercise = (dayIdx: number) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, exercises: [...day.exercises, { exercise_id: exercises[0]?.id ?? '', sets: '3', reps: '12', weight_direction: 'Bodyweight', rest_seconds: '60', notes: '' }] } : day));
+  const addExercise = (dayIdx: number) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, exercises: [...day.exercises, { exercise_id: exercises[0]?.id ?? '', sets: '3', reps: '12', weight_direction: 'Bodyweight', est_weight: '', rest_seconds: '60', notes: '' }] } : day));
+  const applyTemplate = (dayIdx: number, tpl: DayTemplateRow) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, day_label: tpl.name, exercises: tpl.exercises.map(ex => ({ ...ex })) } : day));
   const removeExercise = (dayIdx: number, exIdx: number) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, exercises: day.exercises.filter((_, x) => x !== exIdx) } : day));
   const updateExercise = (dayIdx: number, exIdx: number, patch: Partial<WorkoutExerciseStruct>) => setDays(d => d.map((day, i) => i === dayIdx ? { ...day, exercises: day.exercises.map((ex, x) => x === exIdx ? { ...ex, ...patch } : ex) } : day));
   const submit = async (e: FormEvent) => {
@@ -1307,15 +1393,24 @@ function PlanBuilderPanel({ passcode, tier, exercises, plans, onRefresh, notify 
           {days.map((day, dIdx) => <div key={dIdx} className="card" style={{ marginBottom: 12, background: 'rgba(255,255,255,0.02)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <input value={day.day_label} onChange={e => setDays(d => d.map((x, i) => i === dIdx ? { ...x, day_label: e.target.value } : x))} style={{ fontWeight: 700, flex: 1 }} />
+              <button type="button" className="button ghost" style={{ padding: '5px 8px', fontSize: 12 }} onClick={() => setTemplatePicker(x => x === dIdx ? null : dIdx)}><ClipboardList size={13} /> Template</button>
               <button type="button" className="button ghost" style={{ padding: '5px 8px' }} onClick={() => addExercise(dIdx)}><Plus size={13} /> Exercise</button>
               {days.length > 1 && <button type="button" className="button ghost" style={{ padding: '5px 8px' }} onClick={() => removeDay(dIdx)}><Trash2 size={13} /></button>}
             </div>
-            {day.exercises.length === 0 && <p className="muted" style={{ fontSize: 12 }}>No exercises yet — tap "Exercise" to add one.</p>}
-            {day.exercises.map((ex, eIdx) => <div key={eIdx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+            {templatePicker === dIdx && <div style={{ marginBottom: 10 }}>
+              <select style={{ width: '100%' }} defaultValue="" onChange={e => { const tpl = templates.find(x => x.id === e.target.value); if (tpl) { applyTemplate(dIdx, tpl); setTemplatePicker(null); } }}>
+                <option value="" disabled>Pick a template to fill this day ({templates.length} available)...</option>
+                {Array.from(new Set(templates.map(x => x.split_family))).map(fam => <optgroup label={fam} key={fam}>{templates.filter(x => x.split_family === fam).map(x => <option key={x.id} value={x.id}>{x.name} · {x.level}</option>)}</optgroup>)}
+              </select>
+              <p className="muted" style={{ fontSize: 11, marginTop: 4 }}>This replaces this day's exercises with the template's — you can still edit everything after.</p>
+            </div>}
+            {day.exercises.length === 0 && <p className="muted" style={{ fontSize: 12 }}>No exercises yet — tap "Template" to start from one, or "Exercise" to add one by one.</p>}
+            {day.exercises.map((ex, eIdx) => <div key={eIdx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
               <select value={ex.exercise_id} onChange={e => updateExercise(dIdx, eIdx, { exercise_id: e.target.value })}>{exercises.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
               <input value={ex.sets} onChange={e => updateExercise(dIdx, eIdx, { sets: e.target.value })} placeholder="Sets" />
-              <input value={ex.reps} onChange={e => updateExercise(dIdx, eIdx, { reps: e.target.value })} placeholder="Reps" />
+              <input value={ex.reps} onChange={e => updateExercise(dIdx, eIdx, { reps: e.target.value })} placeholder="Reps (12-20)" />
               <select value={ex.weight_direction} onChange={e => updateExercise(dIdx, eIdx, { weight_direction: e.target.value })}>{WEIGHT_DIRECTIONS.map(w => <option key={w}>{w}</option>)}</select>
+              <input value={ex.est_weight ?? ''} onChange={e => updateExercise(dIdx, eIdx, { est_weight: e.target.value })} placeholder="Est. weight" />
               <input value={ex.rest_seconds} onChange={e => updateExercise(dIdx, eIdx, { rest_seconds: e.target.value })} placeholder="Rest (s)" />
               <button type="button" className="button ghost" style={{ padding: '5px 7px' }} onClick={() => removeExercise(dIdx, eIdx)}><Minus size={13} /></button>
             </div>)}
