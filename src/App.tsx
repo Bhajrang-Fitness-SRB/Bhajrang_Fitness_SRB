@@ -4,11 +4,15 @@ import { QRCodeSVG } from 'qrcode.react';
 import jsQR from 'jsqr';
 import Papa from 'papaparse';
 import { supabase, type AttendanceLog, type Billing, type DayTemplateRow, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff, type WorkoutDayStruct, type WorkoutExerciseRow, type WorkoutExerciseStruct, type WorkoutPlanRow } from './lib/supabase';
+import { Kiosk } from './components/Kiosk';
+import { FaceAdmin } from './components/FaceAdmin';
 
 type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling';
 type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers' | 'leads' | 'workouts';
 const VILLAIN_SESSION_KEY = 'rbf_villain_unlocked';
 const ADMIN_SESSION_KEY = 'rbf_admin_pass';
+// Edge functions (WhatsApp, email, push, AI coach) require the staff/owner passcode.
+const adminPass = () => sessionStorage.getItem(ADMIN_SESSION_KEY) || sessionStorage.getItem(VILLAIN_SESSION_KEY) || '';
 
 const money = (value: number | null | undefined) => `₹${(value ?? 0).toLocaleString('en-IN')}`;
 const daysLeft = (expiry: string | null) => expiry ? Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000)) : 0;
@@ -276,7 +280,7 @@ function InvoicePrintModal({invoice,memberName,gymAddress,onClose}:{invoice:Bill
 function Expenses({expenses,onAdd,onRefresh}:{expenses:{id:number;expense_name:string|null;amount:number|null;expense_date:string|null}[];onAdd:()=>void;onRefresh:()=>void}){return <><div className="page-head"><div><p className="eyebrow">Operating costs</p><h1 className="title">Expense tracker</h1><p className="sub">Know where every rupee goes.</p></div><button className="button primary" onClick={onAdd}><Wallet size={15}/> Log expense</button></div><div className="card"><div className="toolbar"><div className="card-title" style={{margin:0}}>Recent expenses</div><button className="button ghost" onClick={onRefresh}><RefreshCw size={14}/></button></div><table className="table"><thead><tr><th>Description</th><th>Date</th><th>Amount</th></tr></thead><tbody>{expenses.map(x=><tr key={x.id}><td>{x.expense_name||'General expense'}</td><td>{x.expense_date||'—'}</td><td style={{color:'var(--red)'}}>{money(x.amount)}</td></tr>)}</tbody></table>{!expenses.length&&<div className="empty">No expenses logged.</div>}</div></>}
 function ExpenseModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}){const [name,setName]=useState('');const [amount,setAmount]=useState('');const [saving,setSaving]=useState(false);const save=async(e:FormEvent)=>{e.preventDefault();setSaving(true);const {error}=await supabase.from('expenses').insert({expense_name:name,amount:Number(amount)});setSaving(false);if(!error)onSaved()};return <div className="modal-backdrop"><form className="modal" onSubmit={save}><div className="modal-head"><div><p className="eyebrow">New ledger entry</p><h2 style={{margin:0}}>Log expense</h2></div><button type="button" className="close" onClick={onClose}><X/></button></div><div className="form-grid"><div className="field full"><label>Description</label><input required value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Electricity bill"/></div><div className="field"><label>Amount</label><input required type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></div></div><div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:22}}><button type="button" className="button ghost" onClick={onClose}>Cancel</button><button className="button primary" disabled={saving}>{saving?'Saving...':'Save expense'}</button></div></form></div>}
 
-function AIHub({members,notify}:{members:Member[];notify:(m:string)=>void}){const [member,setMember]=useState('');const [goal,setGoal]=useState('Build a balanced 4-day strength program with warm-ups and progression.');const [plan,setPlan]=useState<{title:string;days:string[];notes:string}|null>(null);const [aiText,setAiText]=useState('');const [engine,setEngine]=useState('');const [loading,setLoading]=useState(false);const generate=async()=>{const target=members.find(m=>m.member_id===member)?.name||'your warrior';setLoading(true);setAiText('');setEngine('');try{const {data}=await supabase.functions.invoke('ai-coach',{body:{prompt:`Write a training plan for ${target}. Their request: ${goal}. Format as a short numbered day-by-day plan with brief notes.`}});if(data?.configured&&data?.text){setAiText(data.text);setEngine(data.engine);setPlan(null);notify(`AI plan drafted via ${data.engine==='gemini'?'Gemini':'Groq'}.`);setLoading(false);return}}catch{/* fall through to template */}setPlan({title:`${target}'s Strength Protocol`,days:['Day 01 · Upper push — chest, shoulders, triceps','Day 02 · Lower strength — quads, hamstrings, core','Day 03 · Recovery — mobility and 25 min zone 2','Day 04 · Upper pull — back, biceps, rear delts'],notes:'Start every session with 8 minutes of movement prep. Add one rep before adding load. Sleep 7–8 hours and hydrate consistently.'});notify('AI plan drafted (template mode — add a Gemini or Groq key for real AI-written plans).');setLoading(false)};return <><div className="page-head"><div><p className="eyebrow">Gemini + Groq fallback core</p><h1 className="title">Omni AI Hub</h1><p className="sub">Draft a plan, then assign it to a warrior.</p></div><span className="pill">{engine?engine.toUpperCase()+' LIVE':'AI READY'}</span></div><div className="grid layout-2"><div className="card"><div className="field"><label>Assign to warrior</label><select value={member} onChange={e=>setMember(e.target.value)}><option value="">Select a warrior</option>{members.map(m=><option key={m.member_id} value={m.member_id}>{m.name||m.member_id} · {m.member_id}</option>)}</select></div><div className="field" style={{marginTop:16}}><label>Coach prompt</label><textarea value={goal} onChange={e=>setGoal(e.target.value)}/></div><button className="button cyan" style={{marginTop:18}} disabled={loading} onClick={generate}><Sparkles size={15}/> {loading?'Generating...':'Generate training plan'}</button></div><div className="card">{aiText?<><div className="card-title">AI-generated plan<span>{engine}</span></div><p className="sub" style={{whiteSpace:'pre-wrap',lineHeight:1.7}}>{aiText}</p><button className="button primary" style={{marginTop:10}} onClick={()=>notify('Plan assigned to the selected warrior.')}>Assign plan</button></>:plan?<><div className="card-title">{plan.title}<span>Template</span></div><div className="activity">{plan.days.map(x=><div className="activity-item" key={x}><div className="activity-icon"><Dumbbell size={15}/></div><div className="activity-copy">{x}</div></div>)}</div><p className="sub" style={{lineHeight:1.6}}>{plan.notes}</p><button className="button primary" style={{marginTop:10}} onClick={()=>notify('Plan assigned to the selected warrior.')}>Assign plan</button></>:<div className="empty"><Sparkles size={24} style={{marginBottom:10}}/><br/>Your generated plan will appear here.</div>}</div></div></>}
+function AIHub({members,notify}:{members:Member[];notify:(m:string)=>void}){const [member,setMember]=useState('');const [goal,setGoal]=useState('Build a balanced 4-day strength program with warm-ups and progression.');const [plan,setPlan]=useState<{title:string;days:string[];notes:string}|null>(null);const [aiText,setAiText]=useState('');const [engine,setEngine]=useState('');const [loading,setLoading]=useState(false);const generate=async()=>{const target=members.find(m=>m.member_id===member)?.name||'your warrior';setLoading(true);setAiText('');setEngine('');try{const {data}=await supabase.functions.invoke('ai-coach',{body:{passcode:adminPass(),prompt:`Write a training plan for ${target}. Their request: ${goal}. Format as a short numbered day-by-day plan with brief notes.`}});if(data?.configured&&data?.text){setAiText(data.text);setEngine(data.engine);setPlan(null);notify(`AI plan drafted via ${data.engine==='gemini'?'Gemini':'Groq'}.`);setLoading(false);return}}catch{/* fall through to template */}setPlan({title:`${target}'s Strength Protocol`,days:['Day 01 · Upper push — chest, shoulders, triceps','Day 02 · Lower strength — quads, hamstrings, core','Day 03 · Recovery — mobility and 25 min zone 2','Day 04 · Upper pull — back, biceps, rear delts'],notes:'Start every session with 8 minutes of movement prep. Add one rep before adding load. Sleep 7–8 hours and hydrate consistently.'});notify('AI plan drafted (template mode — add a Gemini or Groq key for real AI-written plans).');setLoading(false)};return <><div className="page-head"><div><p className="eyebrow">Gemini + Groq fallback core</p><h1 className="title">Omni AI Hub</h1><p className="sub">Draft a plan, then assign it to a warrior.</p></div><span className="pill">{engine?engine.toUpperCase()+' LIVE':'AI READY'}</span></div><div className="grid layout-2"><div className="card"><div className="field"><label>Assign to warrior</label><select value={member} onChange={e=>setMember(e.target.value)}><option value="">Select a warrior</option>{members.map(m=><option key={m.member_id} value={m.member_id}>{m.name||m.member_id} · {m.member_id}</option>)}</select></div><div className="field" style={{marginTop:16}}><label>Coach prompt</label><textarea value={goal} onChange={e=>setGoal(e.target.value)}/></div><button className="button cyan" style={{marginTop:18}} disabled={loading} onClick={generate}><Sparkles size={15}/> {loading?'Generating...':'Generate training plan'}</button></div><div className="card">{aiText?<><div className="card-title">AI-generated plan<span>{engine}</span></div><p className="sub" style={{whiteSpace:'pre-wrap',lineHeight:1.7}}>{aiText}</p><button className="button primary" style={{marginTop:10}} onClick={()=>notify('Plan assigned to the selected warrior.')}>Assign plan</button></>:plan?<><div className="card-title">{plan.title}<span>Template</span></div><div className="activity">{plan.days.map(x=><div className="activity-item" key={x}><div className="activity-icon"><Dumbbell size={15}/></div><div className="activity-copy">{x}</div></div>)}</div><p className="sub" style={{lineHeight:1.6}}>{plan.notes}</p><button className="button primary" style={{marginTop:10}} onClick={()=>notify('Plan assigned to the selected warrior.')}>Assign plan</button></>:<div className="empty"><Sparkles size={24} style={{marginBottom:10}}/><br/>Your generated plan will appear here.</div>}</div></div></>}
 
 type BeforeInstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
 function useInstallPrompt() {
@@ -498,111 +502,7 @@ function RenewModal({member,onClose,onSaved}:{member:Member;onClose:()=>void;onS
 function Calculators({notify}:{notify:(m:string)=>void}){const [height,setHeight]=useState('175');const [weight,setWeight]=useState('75');const bmi=(Number(weight)/(Number(height)/100)**2||0).toFixed(1);const [oneRmWeight,setOneRmWeight]=useState('60');const [reps,setReps]=useState('8');const oneRm=(Number(oneRmWeight)*(1+Number(reps)/30)||0).toFixed(1);const [age,setAge]=useState('28');const bmr=(10*Number(weight)+6.25*Number(height)-5*Number(age)+5||0).toFixed(0);const [activity,setActivity]=useState('1.55');const tdee=(Number(bmr)*Number(activity)||0).toFixed(0);const [neck,setNeck]=useState('38');const [waist,setWaist]=useState('85');const [sex,setSex]=useState('Male');const [hip,setHip]=useState('95');const bodyFat=sex==='Male'?(495/(1.0324-0.19077*Math.log10(Number(waist)-Number(neck))+0.15456*Math.log10(Number(height)))-450):(495/(1.29579-0.35004*Math.log10(Number(waist)+Number(hip)-Number(neck))+0.22100*Math.log10(Number(height)))-450);return <section style={{marginTop:32}}><div className="card-title">Performance lab <span>Personal analytics</span></div><div className="grid calc-grid"><div className="card"><div className="card-title"><BarChart3 size={16} color="var(--cyan)"/> BMI engine</div><div className="form-grid"><div className="field"><label>Height (cm)</label><input type="number" value={height} onChange={e=>setHeight(e.target.value)}/></div><div className="field"><label>Weight (kg)</label><input type="number" value={weight} onChange={e=>setWeight(e.target.value)}/></div></div><div className="calc-result">{bmi}</div><div className="result-label">{Number(bmi)<18.5?'Below range':Number(bmi)<25?'Healthy range':'Above range'}</div></div><div className="card"><div className="card-title"><Zap size={16} color="var(--gold)"/> 1RM estimator</div><div className="form-grid"><div className="field"><label>Weight (kg)</label><input type="number" value={oneRmWeight} onChange={e=>setOneRmWeight(e.target.value)}/></div><div className="field"><label>Reps</label><input type="number" value={reps} onChange={e=>setReps(e.target.value)}/></div></div><div className="calc-result">{oneRm} kg</div><div className="result-label">Estimated one-rep max</div></div><div className="card"><div className="card-title"><Activity size={16} color="var(--green)"/> BMR baseline</div><div className="field"><label>Age</label><input type="number" value={age} onChange={e=>setAge(e.target.value)}/></div><div className="calc-result">{bmr}</div><div className="result-label">Estimated calories / day</div></div><div className="card"><div className="card-title"><Flame size={16} color="var(--red)"/> TDEE (with activity)</div><div className="field"><label>Activity level</label><select value={activity} onChange={e=>setActivity(e.target.value)}><option value="1.2">Sedentary (desk job)</option><option value="1.375">Light (1-3 workouts/week)</option><option value="1.55">Moderate (3-5 workouts/week)</option><option value="1.725">Heavy (6-7 workouts/week)</option><option value="1.9">Athlete (2x/day)</option></select></div><div className="calc-result">{tdee}</div><div className="result-label">Calories to maintain current weight</div></div><div className="card"><div className="card-title"><Target size={16} color="var(--gold)"/> Body fat % (Navy method)</div><div className="form-grid"><div className="field"><label>Sex</label><select value={sex} onChange={e=>setSex(e.target.value)}><option>Male</option><option>Female</option></select></div><div className="field"><label>Neck (cm)</label><input type="number" value={neck} onChange={e=>setNeck(e.target.value)}/></div><div className="field"><label>Waist (cm)</label><input type="number" value={waist} onChange={e=>setWaist(e.target.value)}/></div>{sex==='Female'&&<div className="field"><label>Hip (cm)</label><input type="number" value={hip} onChange={e=>setHip(e.target.value)}/></div>}</div><div className="calc-result">{isFinite(bodyFat)&&bodyFat>0?bodyFat.toFixed(1):'—'}%</div><div className="result-label">Estimated body fat</div></div><div className="card"><div className="card-title"><DropletIcon/> Hydration target</div><div className="calc-result">{(Number(weight)*.035).toFixed(1)} L</div><div className="result-label">Daily baseline · add 500ml per workout</div></div><div className="card"><div className="card-title"><HeartIcon/> Cardio HR zone</div><div className="calc-result">{Math.round(208-.7*Number(age))}</div><div className="result-label">Estimated max heart rate</div></div><div className="card"><div className="card-title"><Calculator size={16} color="var(--blue)"/> Macro guide</div><div className="calc-result">{Number(weight)*2}g</div><div className="result-label">Daily protein target</div><div style={{display:'flex',justifyContent:'space-between',marginTop:10,fontSize:12}}><span className="muted">Carbs</span><b>{Math.round(Number(tdee)*0.4/4)}g</b><span className="muted">Fat</span><b>{Math.round(Number(tdee)*0.25/9)}g</b></div></div></div></section>}
 function DropletIcon(){return <span style={{color:'var(--cyan)'}}>◈</span>} function HeartIcon(){return <span style={{color:'var(--red)'}}>♡</span>}
 
-function speak(text: string) {
-  try {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.98; u.pitch = 1; u.volume = 1;
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => /en-IN|en-GB|en-US/.test(v.lang) && /female|male/i.test(v.name)) || voices.find(v => v.lang?.startsWith('en'));
-    if (preferred) u.voice = preferred;
-    window.speechSynthesis.speak(u);
-  } catch { /* speech not available on this device — silently skip */ }
-}
-const GOODBYE_LINES = ['Great session — see you next time, warrior!', 'Well done today. Rest, hydrate, and come back strong.', 'That\'s how champions train. Goodbye for now!', 'Solid effort. Bhajrang Fitness is proud of you — see you soon!'];
 
-function Kiosk({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){
-  const [code,setCode]=useState('');
-  const [message,setMessage]=useState('');
-  const [alertLevel,setAlertLevel]=useState<'ok'|'warn'|'danger'>('ok');
-  const [logs,setLogs]=useState<{id:string;name:string;action:string;time:string}[]>([]);
-  const [scanning,setScanning]=useState(false);
-  const [camError,setCamError]=useState('');
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  const processId = useCallback(async (rawId: string) => {
-    const id = rawId.trim().toUpperCase();
-    if (!id) return;
-    const { data, error } = await supabase.rpc('kiosk_scan', { p_member_id: id });
-    if (error || !data || !data.found) { setMessage('ACCESS DENIED · ID NOT FOUND'); setAlertLevel('danger'); notify('Warrior ID not found.'); setCode(''); return; }
-    const name = data.name || data.member_id;
-    const action = data.action as string;
-    const isExpired = !!data.expired;
-
-    if (action === 'CHECK-IN') {
-      speak(`Welcome to Bhajrang Fitness, ${name}`);
-      if (isExpired) {
-        setTimeout(() => speak(`Attention. ${name}, your package has expired. Please renew at reception.`), 1600);
-      }
-    } else {
-      speak(GOODBYE_LINES[Math.floor(Math.random()*GOODBYE_LINES.length)]);
-    }
-
-    setAlertLevel(isExpired ? 'danger' : 'ok');
-    setMessage(isExpired ? `${action} · ${name} · PACKAGE EXPIRED` : `${action} · ${name}`);
-    setLogs(x=>[{id:data.member_id,name,action,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})},...x].slice(0,6));
-    setCode('');
-  }, [notify]);
-
-  const scan=async(e:FormEvent)=>{e.preventDefault();await processId(code);};
-
-  const stopCamera = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current = null; }
-    setScanning(false);
-  }, []);
-
-  const startCamera = useCallback(async () => {
-    setCamError('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      setScanning(true);
-      let lastTry = 0;
-      const loop = (t: number) => {
-        rafRef.current = requestAnimationFrame(loop);
-        if (t - lastTry < 220) return; // throttle decode attempts
-        lastTry = t;
-        const video = videoRef.current, canvas = canvasRef.current;
-        if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) return;
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d'); if (!ctx) return;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const result = jsQR(imageData.data, imageData.width, imageData.height);
-        if (result && result.data) {
-          stopCamera();
-          processId(result.data);
-        }
-      };
-      rafRef.current = requestAnimationFrame(loop);
-    } catch (err) {
-      setCamError('Camera unavailable — check permissions, or type the Warrior ID below.');
-    }
-  }, [processId, stopCamera]);
-
-  useEffect(() => () => stopCamera(), [stopCamera]);
-
-  return <main className="kiosk"><div className="kiosk-inner"><div className="kiosk-head"><Brand/><div style={{display:'flex',alignItems:'center',gap:15}}><span className="status-dot"><i className="dot"/> SCANNER READY</span><button className="button ghost" onClick={onBack}><ArrowLeft size={15}/> Exit</button></div></div><div className="scan-box"><p className="kicker">BHAJRANG AI KIOSK // GATE 01</p><h1 className="title">Scan to enter.</h1><p className="sub">Present your QR pass, use the camera, or type your Warrior ID.</p>
-    <div className="scan-frame" style={{overflow:'hidden',position:'relative'}}>
-      {scanning ? <video ref={videoRef} muted playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <><div className="scan-line"/><Radio size={48} strokeWidth={1}/></>}
-      <canvas ref={canvasRef} style={{display:'none'}}/>
-    </div>
-    <button type="button" className="button ghost" style={{width:'100%',justifyContent:'center',marginBottom:14}} onClick={()=>scanning?stopCamera():startCamera()}>
-      {scanning ? <><X size={15}/> Stop camera</> : <><Zap size={15}/> Scan with camera</>}
-    </button>
-    {camError && <p className="error" style={{fontSize:12,marginTop:-6,marginBottom:14}}>{camError}</p>}
-    <form onSubmit={scan}><input autoFocus className="kiosk-input" value={code} onChange={e=>setCode(e.target.value)} placeholder="WARRIOR ID"/></form>
-    {message&&<p className={alertLevel==='danger'?'error':alertLevel==='warn'?'kiosk-warn':'success'} style={{fontSize:13,letterSpacing:'.08em',marginTop:20}}>{message}</p>}
-    <div className="log-list" style={{textAlign:'left'}}>{logs.length>0&&<p className="eyebrow" style={{margin:'18px 0 0'}}>Live action log</p>}{logs.map(x=><div className="log" key={x.id+x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}</div>
-  </div></div></main>
-}
 
 function VillainGate({ onBack, notify }: { onBack: () => void; notify: (m: string) => void }) {
   const [passcode, setPasscode] = useState<string | null>(() => sessionStorage.getItem(VILLAIN_SESSION_KEY));
@@ -642,7 +542,7 @@ function VillainGate({ onBack, notify }: { onBack: () => void; notify: (m: strin
 }
 
 function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void; onLock: () => void; notify: (m: string) => void; passcode: string }) {
-  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data' | 'workouts'>('overview');
+  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data' | 'workouts' | 'gate'>('overview');
   const [members, setMembers] = useState<Member[]>([]);
   const [billing, setBilling] = useState<Billing[]>([]);
   const [expenses, setExpenses] = useState<{ id: number; expense_name: string | null; amount: number | null; expense_date: string | null }[]>([]);
@@ -670,7 +570,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     <button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button>
     <div className="side-label">Villain vault</div>
     <nav className="nav">
-      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['workouts','Workout Hub (PT/Prep)',Dumbbell],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
+      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['gate','Kiosk & face scan',Radio],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['workouts','Workout Hub (PT/Prep)',Dumbbell],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
         <button key={key} className={tab===key?'active':''} onClick={()=>{setTab(key);setNavOpen(false)}}><Icon size={16}/>{label}</button>)}
     </nav>
     <button className="button ghost" style={{margin:'20px 14px',width:'calc(100% - 28px)'}} onClick={onLock}><Lock size={14}/> Lock vault</button>
@@ -685,6 +585,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
       </div>
       {loading ? <div className="empty">Loading vault data...</div> : <div className="card"><div className="card-title">Recent floor activity <span>Last 50 punches</span></div>{attendance.length ? <div className="activity">{attendance.slice(0,10).map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy"><b>{x.member_id}</b> {x.punch_out_time?'completed a session':'checked in'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleString():''}</small></div></div>)}</div> : <div className="empty">No attendance yet.</div>}</div>}
     </>}
+    {tab === 'gate' && <FaceAdmin passcode={passcode} members={members} notify={notify} />}
     {tab === 'staff' && <StaffControl staff={staff} passcode={passcode} onRefresh={load} notify={notify} />}
     {tab === 'vault' && <MemberVaultAccess members={members} passcode={passcode} notify={notify} />}
     {tab === 'packages' && <PackageManager passcode={passcode} notify={notify} />}
@@ -860,7 +761,7 @@ function FlyerStudio({ notify }: { notify: (m: string) => void }) {
     const occasionLabel = FLYER_OCCASIONS.find(o => o.id === occasion)?.label || occasion;
     const prompt = `Write short flyer copy for a gym named Bhajrang Fitness. Occasion: ${occasionLabel}. Owner's brief: ${brief || occasionLabel}. Respond with EXACTLY three lines and nothing else — no numbering, no quotes: Line 1 = a punchy headline, max 6 words. Line 2 = one supporting sentence, max 16 words. Line 3 = a short footer or call-to-action, max 10 words, may include "BHAJRANG FITNESS".`;
     try {
-      const { data } = await supabase.functions.invoke('ai-coach', { body: { prompt } });
+      const { data } = await supabase.functions.invoke('ai-coach', { body: { prompt, passcode: adminPass() } });
       if (data?.configured && data?.text) {
         const lines = String(data.text).split('\n').map((l: string) => l.replace(/^[-•\d.]+\s*/, '').trim()).filter(Boolean);
         if (lines[0]) setHeadline(lines[0]);
@@ -987,9 +888,9 @@ function ManualAttendance({ members, attendance, notify, onRefresh }: { members:
   </>;
 }
 
-function pingTelegram(message: string) { void supabase.functions.invoke('notify-telegram', { body: { message } }).catch(() => {}); }
-function sendCloudEmail(to: string, toName: string, subject: string, text: string) { if (!to) return; void supabase.functions.invoke('send-email', { body: { to, toName, subject, text } }).catch(() => {}); }
-function sendPush(title: string, message: string, memberId?: string, url?: string) { void supabase.functions.invoke('send-push', { body: { member_id: memberId, title, message, url } }).catch(() => {}); }
+function pingTelegram(message: string) { void supabase.functions.invoke('notify-telegram', { body: { message, passcode: adminPass() } }).catch(() => {}); }
+function sendCloudEmail(to: string, toName: string, subject: string, text: string) { if (!to) return; void supabase.functions.invoke('send-email', { body: { to, toName, subject, text, passcode: adminPass() } }).catch(() => {}); }
+function sendPush(title: string, message: string, memberId?: string, url?: string) { void supabase.functions.invoke('send-push', { body: { member_id: memberId, title, message, url, passcode: adminPass() } }).catch(() => {}); }
 function enablePushForMember(memberId: string) {
   const w = window as unknown as { OneSignalDeferred?: Array<(os: { Notifications: { requestPermission: () => Promise<void> }; login: (id: string) => Promise<void> }) => Promise<void>> };
   w.OneSignalDeferred = w.OneSignalDeferred || [];
@@ -1050,7 +951,7 @@ function Reminders({ members, billing, notify }: { members: Member[]; billing: B
   const sendCloud = async (kind: 'renewal' | 'birthday' | 'due', phone: string, params: string[]) => {
     if (!phone) return;
     try {
-      const { data } = await supabase.functions.invoke('send-whatsapp', { body: { to: phone, kind, params } });
+      const { data } = await supabase.functions.invoke('send-whatsapp', { body: { to: phone, kind, params, passcode: adminPass() } });
       if (data?.configured === false) { notify('WhatsApp Cloud API not set up yet — use the green button for a manual send instead.'); return; }
       if (data?.ok) { notify('Sent automatically via WhatsApp Cloud API.'); return; }
       notify('WhatsApp Cloud API rejected the send — check the template is approved in Meta Business.');
@@ -1062,7 +963,7 @@ function Reminders({ members, billing, notify }: { members: Member[]; billing: B
     if (!testPhone.trim()) { notify('Enter a phone number to test.'); return; }
     setTesting(true);
     try {
-      const { data } = await supabase.functions.invoke('send-whatsapp', { body: { to: testPhone, kind: 'test', params: [] } });
+      const { data } = await supabase.functions.invoke('send-whatsapp', { body: { to: testPhone, kind: 'test', params: [], passcode: adminPass() } });
       if (data?.configured === false) notify('Secrets not set yet — add WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in Supabase first.');
       else if (data?.ok) notify('Test message sent — check WhatsApp on that number.');
       else notify(`Test failed: ${data?.data?.error?.message || data?.error || 'see function logs for details'}.`);
@@ -2279,7 +2180,7 @@ function PackageManager({ passcode, notify }: { passcode: string; notify: (m: st
   const askAI = async () => {
     setAiLoading(true); setAiSuggestion('');
     const summary = packages.map(p => `${p.name}: ₹${p.price} for ${p.duration_months}mo`).join(', ');
-    const { data, error } = await supabase.functions.invoke('ai-coach', { body: { prompt: `Current gym membership packages: ${summary}. Suggest pricing tweaks, a new package idea, or a promotional bundle to increase sign-ups and revenue. Keep it to 4-5 concise bullet points, India/INR context.` } });
+    const { data, error } = await supabase.functions.invoke('ai-coach', { body: { passcode: adminPass(), prompt: `Current gym membership packages: ${summary}. Suggest pricing tweaks, a new package idea, or a promotional bundle to increase sign-ups and revenue. Keep it to 4-5 concise bullet points, India/INR context.` } });
     setAiLoading(false);
     const result = data as { configured?: boolean; ok?: boolean; text?: string; reason?: string } | null;
     if (error || !result) { setAiSuggestion("Could not reach the AI advisor right now — try again in a moment."); return; }

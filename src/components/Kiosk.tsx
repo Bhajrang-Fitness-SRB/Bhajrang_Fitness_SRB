@@ -1,208 +1,255 @@
-import { FormEvent, useRef, useState, useCallback, useEffect } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
-import { ArrowLeft, Zap, X, Radio } from 'lucide-react';
-import { initializeFaceApi, detectFaceAndIdentify } from './lib/faceApi';
+import { ArrowLeft, Radio, X, Zap } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { getDescriptor, loadFaceApi, matchDescriptor, type FaceCandidate } from '../lib/faceApi';
 
-const supabase = (window as any).supabase;
-
+const DEVICE_KEY = 'rbf_kiosk_device_id';
 const GOODBYE_LINES = [
-  'Have a great workout, {name}!',
-  'Strong work today, {name}!',
-  'See you soon, {name}!',
-  'Keep crushing it, {name}!',
-  'Train hard, {name}!',
-  'You got this, {name}!',
+  'Great session — see you next time, {name}!',
+  'Well done today, {name}. Rest, hydrate, and come back strong.',
+  "That's how champions train, {name}. Goodbye for now!",
+  'Solid effort, {name}. See you soon!',
 ];
 
 function speak(text: string) {
   try {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.9;
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  } catch { /* speech not available on this device — silently skip */ }
+    window.speechSynthesis.speak(u);
+  } catch { /* speech not available on this device */ }
 }
 
-/**
- * Enhanced Kiosk component with three scan modes:
- * 1. Manual ID input (always available)
- * 2. QR code scanning via camera (existing)
- * 3. Face scan detection (new, optional, lazy-loaded)
- */
-export function Kiosk({onBack,notify}:{onBack:()=>void;notify:(m:string)=>void}){
-  // Shared state
-  const [code,setCode]=useState('');
-  const [message,setMessage]=useState('');
-  const [alertLevel,setAlertLevel]=useState<'ok'|'warn'|'danger'>('ok');
-  const [logs,setLogs]=useState<{id:string;name:string;action:string;time:string}[]>([]);
-  const [camError,setCamError]=useState('');
-  
-  // QR scanning state
-  const [scanning,setScanning]=useState(false);
-  
-  // Face scanning state (new)
-  const [faceScanning, setFaceScanning] = useState(false);
-  const [faceInitError, setFaceInitError] = useState('');
-  const [faceLoading, setFaceLoading] = useState(false);
+function getDeviceId(): string {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem(DEVICE_KEY, id); }
+  return id;
+}
 
-  // Refs
+type Mode = 'idle' | 'qr' | 'face';
+
+/**
+ * Kiosk with three ways in: typed Warrior ID, QR pass, and face scan.
+ * Every check-in goes through kiosk_scan_device, so only staff-approved devices can punch members in or out.
+ */
+export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: string) => void }) {
+  const [code, setCode] = useState('');
+  const [message, setMessage] = useState('');
+  const [alertLevel, setAlertLevel] = useState<'ok' | 'warn' | 'danger'>('ok');
+  const [logs, setLogs] = useState<{ id: string; name: string; action: string; time: string }[]>([]);
+  const [mode, setMode] = useState<Mode>('idle');
+  const [camError, setCamError] = useState('');
+  const [faceStatus, setFaceStatus] = useState('');
+  const [approved, setApproved] = useState<boolean | null>(null);
+  const [deviceId] = useState(getDeviceId);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const runRef = useRef(0); // bumped on every stop so stale loops exit
+  const lockUntilRef = useRef(0);
+  const candidatesRef = useRef<FaceCandidate[]>([]);
+  const candidatesAtRef = useRef(0);
+  const approvedRef = useRef<boolean | null>(null);
+  approvedRef.current = approved;
+
+  // Register this device and keep checking until staff approve it.
+  useEffect(() => {
+    let alive = true;
+    let t: number | undefined;
+    const check = async () => {
+      const { data, error } = await supabase.rpc('kiosk_register_device', {
+        p_device_id: deviceId,
+        p_device_name: `Kiosk ${navigator.platform || ''}`.trim().slice(0, 60),
+      });
+      if (!alive) return;
+      const ok = !error && data === true;
+      setApproved(ok);
+      if (!ok) t = window.setTimeout(check, 15000);
+    };
+    void check();
+    return () => { alive = false; if (t) window.clearTimeout(t); };
+  }, [deviceId]);
+
+  const stopAll = useCallback(() => {
+    runRef.current += 1;
+    if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setMode('idle');
+    setFaceStatus('');
+  }, []);
+
+  useEffect(() => () => stopAll(), [stopAll]);
 
   const processId = useCallback(async (rawId: string) => {
     const id = rawId.trim().toUpperCase();
-    if (!id) return;
-    const { data, error } = await supabase.rpc('kiosk_scan', { p_member_id: id });
-    if (error || !data || !data.found) { setMessage('ACCESS DENIED · ID NOT FOUND'); setAlertLevel('danger'); notify('Warrior ID not found.'); setCode(''); return; }
-    const name = data.name || data.member_id;
+    if (!id) return false;
+    if (!approvedRef.current) {
+      setMessage('THIS DEVICE IS NOT APPROVED YET · ASK STAFF'); setAlertLevel('warn'); setCode('');
+      return false;
+    }
+    const { data, error } = await supabase.rpc('kiosk_scan_device', { p_device_id: deviceId, p_member_id: id });
+    if (error) {
+      const denied = /not approved/i.test(error.message);
+      setMessage(denied ? 'THIS DEVICE IS NOT APPROVED YET · ASK STAFF' : 'SCANNER ERROR · TRY AGAIN');
+      setAlertLevel(denied ? 'warn' : 'danger');
+      if (denied) setApproved(false);
+      setCode('');
+      return false;
+    }
+    if (!data || !data.found) {
+      setMessage('ACCESS DENIED · ID NOT FOUND'); setAlertLevel('danger'); notify('Warrior ID not found.'); setCode('');
+      return false;
+    }
+    const name: string = data.name || data.member_id;
     const action = data.action as string;
     const isExpired = !!data.expired;
 
+    if (action === 'ALREADY-SCANNED') {
+      setAlertLevel('warn'); setMessage(`ALREADY SCANNED · ${name}`); setCode('');
+      return true;
+    }
     if (action === 'CHECK-IN') {
       speak(`Welcome to Bhajrang Fitness, ${name}`);
-      if (isExpired) {
-        setTimeout(() => speak(`Attention. ${name}, your package has expired. Please renew at reception.`), 1600);
-      }
+      if (isExpired) setTimeout(() => speak(`Attention. ${name}, your package has expired. Please renew at reception.`), 1600);
     } else {
-      speak(GOODBYE_LINES[Math.floor(Math.random()*GOODBYE_LINES.length)].replace('{name}', name));
+      speak(GOODBYE_LINES[Math.floor(Math.random() * GOODBYE_LINES.length)].replace('{name}', name));
     }
-
     setAlertLevel(isExpired ? 'danger' : 'ok');
     setMessage(isExpired ? `${action} · ${name} · PACKAGE EXPIRED` : `${action} · ${name}`);
-    setLogs(x=>[{id:data.member_id,name,action,time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})},...x].slice(0,6));
+    setLogs(x => [{ id: data.member_id, name, action, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...x].slice(0, 6));
     setCode('');
-  }, [notify]);
+    return true;
+  }, [deviceId, notify]);
 
-  // ===== QR SCANNING LOGIC =====
-  const scan=async(e:FormEvent)=>{e.preventDefault();await processId(code);};
+  const openCamera = async (facing: 'environment' | 'user') => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    streamRef.current = stream;
+    const v = videoRef.current;
+    if (!v) throw new Error('video element missing');
+    v.srcObject = stream;
+    await v.play();
+  };
 
-  const stopCamera = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current = null; }
-    setScanning(false);
-  }, []);
-
-  const startCamera = useCallback(async () => {
-    setCamError('');
-    setFaceScanning(false); // Stop face mode if active
+  // ===== QR =====
+  const startQr = async () => {
+    stopAll(); setCamError('');
+    const run = runRef.current;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      setScanning(true);
-      let lastTry = 0;
+      await openCamera('environment');
+      setMode('qr');
+      let last = 0;
       const loop = (t: number) => {
-        rafRef.current = requestAnimationFrame(loop);
-        if (t - lastTry < 220) return;
-        lastTry = t;
-        const video = videoRef.current, canvas = canvasRef.current;
-        if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) return;
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d'); if (!ctx) return;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const result = jsQR(imageData.data, imageData.width, imageData.height);
-        if (result && result.data) {
-          stopCamera();
-          processId(result.data);
-        }
+        if (runRef.current !== run) return;
+        requestAnimationFrame(loop);
+        if (t - last < 220) return;
+        last = t;
+        const v = videoRef.current, c = canvasRef.current;
+        if (!v || !c || v.readyState !== v.HAVE_ENOUGH_DATA) return;
+        c.width = v.videoWidth; c.height = v.videoHeight;
+        const ctx = c.getContext('2d', { willReadFrequently: true }); if (!ctx) return;
+        ctx.drawImage(v, 0, 0, c.width, c.height);
+        const img = ctx.getImageData(0, 0, c.width, c.height);
+        const res = jsQR(img.data, img.width, img.height);
+        if (res?.data) { stopAll(); void processId(res.data); }
       };
-      rafRef.current = requestAnimationFrame(loop);
-    } catch (err) {
-      setCamError('Camera unavailable — check permissions, or type the Warrior ID below.');
+      requestAnimationFrame(loop);
+    } catch {
+      stopAll(); setCamError('Camera unavailable — check permissions (HTTPS required), or type the Warrior ID below.');
     }
-  }, [processId, stopCamera]);
+  };
 
-  // ===== FACE SCANNING LOGIC (NEW) =====
-  const stopFaceCamera = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    if (streamRef.current) { streamRef.current.getTracks().forEach(t=>t.stop()); streamRef.current = null; }
-    setFaceScanning(false);
-  }, []);
+  // ===== FACE =====
+  const refreshCandidates = async () => {
+    const { data, error } = await supabase.rpc('kiosk_list_face_descriptors', { p_device_id: deviceId });
+    if (error) throw new Error(error.message);
+    candidatesRef.current = (data ?? []) as FaceCandidate[];
+    candidatesAtRef.current = Date.now();
+  };
 
-  const startFaceCamera = useCallback(async () => {
-    setFaceInitError('');
-    setFaceLoading(true);
-    setScanning(false); // Stop QR mode if active
-
+  const startFace = async () => {
+    if (!approvedRef.current) { setCamError('This device is not approved yet — ask staff to approve it.'); return; }
+    stopAll(); setCamError(''); setFaceStatus('Loading face models…');
+    const run = runRef.current;
     try {
-      // Initialize face-api.js on first use
-      const initialized = await initializeFaceApi();
-      if (!initialized) {
-        throw new Error('Failed to load face detection models');
-      }
+      await loadFaceApi();
+      await refreshCandidates();
+      if (runRef.current !== run) return;
+      await openCamera('user');
+      setMode('face');
+      if (candidatesRef.current.length === 0) setFaceStatus('No faces enrolled yet — use the staff screen to enrol members.');
+      else setFaceStatus('Look at the camera');
 
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      streamRef.current = stream;
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-      setFaceScanning(true);
-      setFaceLoading(false);
-
-      let lastDetection = 0;
-      const loop = (t: number) => {
-        rafRef.current = requestAnimationFrame(loop);
-        if (t - lastDetection < 500) return; // Throttle face detection to every 500ms
-        lastDetection = t;
-
-        const video = videoRef.current, canvas = canvasRef.current;
-        if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) return;
-        
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Run face detection
-        (async () => {
-          try {
-            const result = await detectFaceAndIdentify(canvas);
-            if (result.found) {
-              setMessage(`Face detected · Confidence: ${(result.confidence || 0).toFixed(2)}`);
-              setAlertLevel('ok');
-              // Note: In production, if result.memberId is set, call processId(result.memberId)
-              // For now, this is a detection-only implementation
+      let streakId = ''; let streak = 0;
+      const tick = async () => {
+        if (runRef.current !== run) return;
+        try {
+          const v = videoRef.current;
+          if (v && v.readyState === v.HAVE_ENOUGH_DATA && Date.now() > lockUntilRef.current) {
+            if (Date.now() - candidatesAtRef.current > 5 * 60 * 1000) await refreshCandidates().catch(() => {});
+            const desc = await getDescriptor(v);
+            if (runRef.current !== run) return;
+            if (!desc) { streakId = ''; streak = 0; }
+            else {
+              const m = matchDescriptor(desc, candidatesRef.current);
+              if (!m) { streakId = ''; streak = 0; setFaceStatus('Face not recognised — try the QR or Warrior ID'); }
+              else {
+                streak = m.memberId === streakId ? streak + 1 : 1; streakId = m.memberId;
+                setFaceStatus(`Verifying… ${m.name ?? m.memberId}`);
+                if (streak >= 2) { // same person on two consecutive checks
+                  lockUntilRef.current = Date.now() + 6000; streak = 0; streakId = '';
+                  await processId(m.memberId);
+                  setFaceStatus('Look at the camera');
+                }
+              }
             }
-          } catch (err) {
-            console.error('Face detection error:', err);
           }
-        })();
+        } catch (e) { console.error('Face tick failed', e); }
+        if (runRef.current === run) timerRef.current = window.setTimeout(tick, 600);
       };
-      rafRef.current = requestAnimationFrame(loop);
-    } catch (err) {
-      setFaceLoading(false);
-      setFaceInitError('Face camera unavailable — check permissions, or use another method.');
+      timerRef.current = window.setTimeout(tick, 600);
+    } catch (e) {
+      stopAll();
+      setCamError(e instanceof Error && /face|model|library/i.test(e.message)
+        ? e.message
+        : 'Face camera unavailable — check permissions (HTTPS required), or use another method.');
     }
-  }, []);
+  };
 
-  // Cleanup on unmount
-  useEffect(() => () => { stopCamera(); stopFaceCamera(); }, [stopCamera, stopFaceCamera]);
+  const submit = async (e: FormEvent) => { e.preventDefault(); await processId(code); };
+  const cameraOn = mode !== 'idle';
 
-  return <main className="kiosk"><div className="kiosk-inner"><div className="kiosk-head"><div style={{display:'flex',alignItems:'center',gap:18}}><span className="status-dot"><i className="dot"/> SCANNER READY</span><button className="button ghost" onClick={onBack}><ArrowLeft size={15}/> Exit</button></div></div><div className="scan-box"><p className="kicker">BHAJRANG AI KIOSK // GATE 01</p><h1 className="title">Scan to enter.</h1><p className="sub">Present your QR pass, use the camera, type your Warrior ID, or try face scan.</p>
-    <div className="scan-frame" style={{overflow:'hidden',position:'relative'}}>
-      {scanning || faceScanning ? <video ref={videoRef} muted playsInline style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <><div className="scan-line"/><Radio size={48} strokeWidth={1}/></>}
-      <canvas ref={canvasRef} style={{display:'none'}}/>
-    </div>
-    
-    {/* QR Scan Button */}
-    <button type="button" className="button ghost" style={{width:'100%',justifyContent:'center',marginBottom:14}} onClick={()=>scanning?stopCamera():startCamera()}>
-      {scanning ? <><X size={15}/> Stop camera</> : <><Zap size={15}/> Scan with camera</>}
-    </button>
-    {camError && <p className="error" style={{fontSize:12,marginTop:-6,marginBottom:14}}>{camError}</p>}
-
-    {/* Face Scan Button (New) */}
-    <button type="button" className="button ghost" style={{width:'100%',justifyContent:'center',marginBottom:14,borderColor:'var(--cyan)',color:'var(--cyan)'}} onClick={()=>faceScanning?stopFaceCamera():startFaceCamera()} disabled={faceLoading}>
-      {faceLoading ? <>Loading face detection...</> : faceScanning ? <><X size={15}/> Stop face scan</> : <>🔍 Try face scan</>}
-    </button>
-    {faceInitError && <p className="error" style={{fontSize:12,marginTop:-6,marginBottom:14}}>{faceInitError}</p>}
-
-    <form onSubmit={scan}><input autoFocus className="kiosk-input" value={code} onChange={e=>setCode(e.target.value)} placeholder="WARRIOR ID"/></form>
-    {message&&<p className={alertLevel==='danger'?'error':alertLevel==='warn'?'kiosk-warn':'success'} style={{fontSize:13,letterSpacing:'.08em',marginTop:20}}>{message}</p>}
-    <div className="log-list" style={{textAlign:'left'}}>{logs.length>0&&<p className="eyebrow" style={{margin:'18px 0 0'}}>Live action log</p>}{logs.map(x=><div className="log" key={x.id+x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}</div>
-  </div></div></main>
+  return <main className="kiosk"><div className="kiosk-inner">
+    <div className="kiosk-head"><div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+      <span className="status-dot"><i className="dot" /> {approved === null ? 'CONNECTING' : approved ? 'SCANNER READY' : 'AWAITING STAFF APPROVAL'}</span>
+      <button className="button ghost" onClick={() => { stopAll(); onBack(); }}><ArrowLeft size={15} /> Exit</button>
+    </div></div>
+    <div className="scan-box">
+      <p className="kicker">BHAJRANG AI KIOSK // GATE 01</p>
+      <h1 className="title">Scan to enter.</h1>
+      <p className="sub">Present your QR pass, use face scan, or type your Warrior ID.</p>
+      {approved === false && <p className="kiosk-warn" style={{ fontSize: 12, lineHeight: 1.6 }}>This device must be approved by staff before it can check members in. Device ID: <b>{deviceId.slice(0, 8)}</b></p>}
+      <div className="scan-frame" style={{ overflow: 'hidden', position: 'relative' }}>
+        <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraOn ? 'block' : 'none', transform: mode === 'face' ? 'scaleX(-1)' : undefined }} />
+        {!cameraOn && <><div className="scan-line" /><Radio size={48} strokeWidth={1} /></>}
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+      </div>
+      <button type="button" className="button ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 14 }} onClick={() => mode === 'qr' ? stopAll() : void startQr()}>
+        {mode === 'qr' ? <><X size={15} /> Stop camera</> : <><Zap size={15} /> Scan QR with camera</>}
+      </button>
+      <button type="button" className="button ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 14, borderColor: 'var(--cyan)', color: 'var(--cyan)' }} onClick={() => mode === 'face' ? stopAll() : void startFace()}>
+        {mode === 'face' ? <><X size={15} /> Stop face scan</> : <>Face scan</>}
+      </button>
+      {faceStatus && <p className="sub" style={{ fontSize: 12, marginTop: -4 }}>{faceStatus}</p>}
+      {camError && <p className="error" style={{ fontSize: 12, marginTop: -6, marginBottom: 14 }}>{camError}</p>}
+      <form onSubmit={submit}><input autoFocus className="kiosk-input" value={code} onChange={e => setCode(e.target.value)} placeholder="WARRIOR ID" /></form>
+      {message && <p className={alertLevel === 'danger' ? 'error' : alertLevel === 'warn' ? 'kiosk-warn' : 'success'} style={{ fontSize: 13, letterSpacing: '.08em', marginTop: 20 }}>{message}</p>}
+      <div className="log-list" style={{ textAlign: 'left' }}>
+        {logs.length > 0 && <p className="eyebrow" style={{ margin: '18px 0 0' }}>Live action log</p>}
+        {logs.map(x => <div className="log" key={x.id + x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}
+      </div>
+    </div></div></main>;
 }
