@@ -2033,6 +2033,7 @@ function MemberSelfEdit({ member, onClose, notify }: { member: Member; onClose: 
     return init;
   });
   const [pass, setPass] = useState('');
+  const [newPic, setNewPic] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const set = (f: string) => (v: string) => setForm(x => ({ ...x, [f]: v }));
@@ -2040,6 +2041,7 @@ function MemberSelfEdit({ member, onClose, notify }: { member: Member; onClose: 
     e.preventDefault(); setError(''); setSaving(true);
     const changed: Record<string, string> = {};
     SELF_FIELDS.forEach(([f]) => { const orig = rec[f] == null ? '' : String(rec[f]); if (form[f] !== orig) changed[f] = form[f]; });
+    if (newPic) changed.profile_pic = newPic;
     if (!Object.keys(changed).length) { setSaving(false); setError('Nothing has been changed yet.'); return; }
     const { error: err } = await supabase.rpc('member_request_profile_change', { p_member_id: member.member_id, p_passcode: pass, p_changes: changed });
     setSaving(false);
@@ -2048,7 +2050,7 @@ function MemberSelfEdit({ member, onClose, notify }: { member: Member; onClose: 
   };
   return <div className="modal-backdrop"><form className="modal" onSubmit={submit} style={{maxWidth:680}}>
     <div className="modal-head"><div><p className="eyebrow">My profile</p><h2 style={{margin:0}}>Update my details</h2><p className="sub">Changes go to reception for approval before they appear on your profile.</p></div><button type="button" className="close" onClick={onClose}><X/></button></div>
-    <div className="form-grid">{SELF_FIELDS.map(([f, label, kind]) => <FieldInput key={f} f={f} label={label} kind={kind} value={form[f] ?? ''} onChange={set(f)} />)}</div>
+    <div className="form-grid"><PhotoUploadField label="Profile picture (selfie)" hint="Take a clear, front-facing selfie" value={newPic ?? member.profile_pic} onChange={url => setNewPic(url)} capture />{SELF_FIELDS.map(([f, label, kind]) => <FieldInput key={f} f={f} label={label} kind={kind} value={form[f] ?? ''} onChange={set(f)} />)}</div>
     <div className="field" style={{marginTop:14}}><label>Confirm with your passcode</label><input required type="password" inputMode="numeric" maxLength={4} value={pass} onChange={e=>setPass(e.target.value)} placeholder="4 digits" /></div>
     {error && <p className="error" style={{fontSize:12}}>{error}</p>}
     <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:18}}><button type="button" className="button ghost" onClick={onClose}>Cancel</button><button className="button primary" disabled={saving}>{saving?'Sending...':'Send for approval'}</button></div>
@@ -2070,7 +2072,7 @@ function ChangeRequestsDesk({ passcode, notify }: { passcode: string; notify: (m
     {reqs.map(r => <div key={r.id} style={{borderTop:'1px solid var(--line)',paddingTop:12,marginTop:12}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12}}>
         <div><b>{r.member_id}</b><div className="muted" style={{fontSize:11}}>{new Date(r.requested_at).toLocaleString()}</div>
-          <div style={{marginTop:6,fontSize:13}}>{Object.entries(r.changes).map(([k,v]) => <div key={k}><span className="muted">{k}:</span> {String(v) || <i className="muted">(cleared)</i>}</div>)}</div>
+          <div style={{marginTop:6,fontSize:13}}>{Object.entries(r.changes).map(([k,v]) => <div key={k}><span className="muted">{k === 'profile_pic' ? 'new profile picture' : k}:</span> {k === 'profile_pic' ? <img src={String(v)} alt="New selfie" style={{width:72,height:72,borderRadius:'50%',objectFit:'cover',border:'2px solid var(--gold)',verticalAlign:'middle'}} /> : (String(v) || <i className="muted">(cleared)</i>)}</div>)}</div>
         </div>
         <div style={{display:'flex',gap:6}}><button className="button primary" style={{padding:'6px 10px'}} onClick={()=>resolve(r.id,true)}><Check size={13}/></button><button className="button ghost" style={{padding:'6px 10px'}} onClick={()=>resolve(r.id,false)}><X size={13}/></button></div>
       </div>

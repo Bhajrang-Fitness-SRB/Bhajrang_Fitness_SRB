@@ -1,0 +1,4 @@
+-- Members can request a new profile picture (selfie). Reception approves it in
+-- "Member update requests". member_request_profile_change now allows 'profile_pic'
+-- (must be a public member-selfies storage URL) and admin_resolve_change_request applies it.
+-- See live function definitions; this file records the change.
