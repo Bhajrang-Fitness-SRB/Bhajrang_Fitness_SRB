@@ -1,33 +1,32 @@
 {
-  "name": "Bhajrang Fitness — Warrior App",
-  "short_name": "Warrior",
-  "description": "Member app: gate pass, membership status, workouts, rule book and progress.",
-  "id": "/warrior",
-  "start_url": "/warrior",
-  "scope": "/warrior",
+  "name": "Bhajrang Fitness — Admin",
+  "short_name": "Admin",
+  "description": "Owner panel for Bhajrang Fitness.",
+  "id": "/villain",
+  "start_url": "/villain",
+  "scope": "/villain",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#080b12",
   "theme_color": "#080b12",
   "categories": [
-    "health",
-    "fitness"
+    "business"
   ],
   "icons": [
     {
-      "src": "/brand/icon-warrior-192.png",
+      "src": "/brand/icon-admin-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/brand/icon-warrior-512.png",
+      "src": "/brand/icon-admin-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/brand/icon-warrior-512.png",
+      "src": "/brand/icon-admin-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

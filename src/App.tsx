@@ -8,9 +8,10 @@ import { Kiosk } from './components/Kiosk';
 import { FaceAdmin } from './components/FaceAdmin';
 import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
 import { AgentDesk } from './components/AgentDesk';
+import { InstallBanner, InstallHub } from './components/InstallHub';
 import { FinesDesk, MyFines, RuleBookEditor, RuleBookView } from './components/RulesFines';
 
-type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling';
+type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling' | '/install';
 type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'rules' | 'fines' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers' | 'leads' | 'workouts';
 const VILLAIN_SESSION_KEY = 'rbf_villain_unlocked';
 const ADMIN_SESSION_KEY = 'rbf_admin_pass';
@@ -23,7 +24,7 @@ const toCsv = (rows: Record<string, unknown>[]) => { if (!rows.length) return ''
 const downloadCsv = (name: string, rows: Record<string, unknown>[]) => { const csv = toCsv(rows); if (!csv) return; const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
 
 function usePath(): [Path, (p: Path) => void] {
-  const normalize = (p: string): Path => (p === '/administration' ? '/' : ['/warrior', '/kiosk', '/villain', '/join', '/selling'].includes(p) ? (p as Path) : '/');
+  const normalize = (p: string): Path => (p === '/administration' ? '/' : ['/warrior', '/kiosk', '/villain', '/join', '/selling', '/install'].includes(p) ? (p as Path) : '/');
   const [path, setPath] = useState<Path>(() => normalize(window.location.pathname));
   useEffect(() => { const onPop = () => setPath(normalize(window.location.pathname)); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop); }, []);
   useEffect(() => { if (window.location.pathname === '/administration') window.history.replaceState({}, '', '/'); }, []);
@@ -45,11 +46,16 @@ export default function App() {
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3500); };
   const home = () => navigate('/');
   useEffect(() => {
+    const role = path === '/warrior' ? 'warrior' : path === '/kiosk' ? 'kiosk' : path === '/villain' ? 'admin' : 'staff';
+    const titles: Record<string, string> = { warrior: 'Warrior', kiosk: 'Kiosk', admin: 'Admin', staff: 'Staff' };
     const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-    if (!link) return;
-    const manifestFor = path === '/warrior' ? '/manifest-warrior.webmanifest' : path === '/kiosk' ? '/manifest-kiosk.webmanifest' : '/manifest.webmanifest';
-    if (link.href.endsWith(manifestFor)) return;
-    link.href = manifestFor;
+    if (link && !link.href.endsWith(`/manifest-${role}.webmanifest`)) link.href = `/manifest-${role}.webmanifest`;
+    const touch = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
+    if (touch) touch.href = `/brand/apple-touch-${role}.png`;
+    document.title = `Bhajrang ${titles[role]}`;
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    if (!meta) { meta = document.createElement('meta'); meta.name = 'apple-mobile-web-app-title'; document.head.appendChild(meta); }
+    meta.content = titles[role];
   }, [path]);
   return <div className="app">
     <div className="bg-watermark" />
@@ -60,6 +66,8 @@ export default function App() {
     {path === '/villain' && <VillainGate onBack={home} notify={notify} />}
     {path === '/join' && <PublicSignup />}
     {path === '/selling' && <Selling onBack={home} notify={notify} />}
+    {path === '/install' && <InstallHub notify={notify} />}
+    <InstallBanner path={path} />
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }
