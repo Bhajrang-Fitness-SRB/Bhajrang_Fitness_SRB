@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
-import { Activity, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Maximize2, Menu, Minus, Plus, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, Upload, UserCheck, UserPlus, Users, Wallet, X, Zap } from 'lucide-react';
+import { Activity, Bot, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Maximize2, Menu, Minus, Plus, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, Upload, UserCheck, UserPlus, Users, Wallet, X, Zap } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import jsQR from 'jsqr';
 import Papa from 'papaparse';
@@ -7,6 +7,7 @@ import { supabase, type AttendanceLog, type Billing, type DayTemplateRow, type I
 import { Kiosk } from './components/Kiosk';
 import { FaceAdmin } from './components/FaceAdmin';
 import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
+import { AgentDesk } from './components/AgentDesk';
 import { FinesDesk, MyFines, RuleBookEditor, RuleBookView } from './components/RulesFines';
 
 type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling';
@@ -547,7 +548,7 @@ function VillainGate({ onBack, notify }: { onBack: () => void; notify: (m: strin
 }
 
 function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void; onLock: () => void; notify: (m: string) => void; passcode: string }) {
-  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data' | 'rules' | 'fines' | 'workouts' | 'gate'>('overview');
+  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data' | 'rules' | 'fines' | 'workouts' | 'gate' | 'agent'>('overview');
   const [members, setMembers] = useState<Member[]>([]);
   const [billing, setBilling] = useState<Billing[]>([]);
   const [expenses, setExpenses] = useState<{ id: number; expense_name: string | null; amount: number | null; expense_date: string | null }[]>([]);
@@ -575,7 +576,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     <button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button>
     <div className="side-label">Villain vault</div>
     <nav className="nav">
-      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['gate','Kiosk & face scan',Radio],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['workouts','Workout Hub (PT/Prep)',Dumbbell],['rules','Gym Rule Book',FileText],['fines','Fines & Punishments',ShieldAlert],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
+      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['gate','Kiosk & face scan',Radio],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['workouts','Workout Hub (PT/Prep)',Dumbbell],['rules','Gym Rule Book',FileText],['fines','Fines & Punishments',ShieldAlert],['agent','AI Night Agent',Bot],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
         <button key={key} className={tab===key?'active':''} onClick={()=>{setTab(key);setNavOpen(false)}}><Icon size={16}/>{label}</button>)}
     </nav>
     <button className="button ghost" style={{margin:'20px 14px',width:'calc(100% - 28px)'}} onClick={onLock}><Lock size={14}/> Lock vault</button>
@@ -593,6 +594,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     {tab === 'gate' && <FaceAdmin passcode={passcode} members={members} notify={notify} />}
     {tab === 'rules' && <RuleBookEditor passcode={passcode} notify={notify} />}
     {tab === 'fines' && <FinesDesk passcode={passcode} members={members} isOwner notify={notify} />}
+    {tab === 'agent' && <AgentDesk passcode={passcode} notify={notify} />}
     {tab === 'staff' && <StaffControl staff={staff} passcode={passcode} onRefresh={load} notify={notify} />}
     {tab === 'vault' && <MemberVaultAccess members={members} passcode={passcode} notify={notify} />}
     {tab === 'packages' && <PackageManager passcode={passcode} notify={notify} />}
