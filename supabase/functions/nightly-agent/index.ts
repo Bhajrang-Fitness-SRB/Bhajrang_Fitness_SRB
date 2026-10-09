@@ -30,7 +30,7 @@ function json(body: unknown, status = 200) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  let body: { trigger?: string; passcode?: string } = {};
+  let body: { trigger?: string; passcode?: string; action?: string } = {};
   try { body = await req.json(); } catch { /* empty body */ }
 
   // Auth: nightly cron secret OR the owner's passcode ("Run now" button).
@@ -47,6 +47,20 @@ Deno.serve(async (req) => {
     return json({ error: 'Not authorised.' }, 401);
   }
 
+  // Integration status (presence of secrets only — never their values).
+  if (body.action === 'status') {
+    const has = (k: string) => !!Deno.env.get(k);
+    return json({
+      whatsapp: has('WHATSAPP_TOKEN') && has('WHATSAPP_PHONE_NUMBER_ID'),
+      email: has('RESEND_API_KEY'), email_custom_sender: has('RESEND_FROM_EMAIL'),
+      push: has('ONESIGNAL_API_KEY') && has('ONESIGNAL_APP_ID'),
+      telegram: has('TELEGRAM_BOT_TOKEN') && has('TELEGRAM_CHAT_ID'),
+      ai_coach: has('GEMINI_API_KEY') || has('GROQ_API_KEY'), gemini: has('GEMINI_API_KEY'), groq: has('GROQ_API_KEY'),
+      claude_key_saved: !!(has('ANTHROPIC_API_KEY') || (await sb.rpc('agent_get_secret', { p_name: 'anthropic_api_key' })).data),
+      auth_grace_on: Deno.env.get('AUTH_GRACE') === 'true',
+    });
+  }
+
   const { data: health, error: hErr } = await sb.rpc('agent_collect_health');
   if (hErr) {
     await sb.rpc('agent_save_run', { p_trigger: trigger, p_status: 'error', p_summary: 'Could not collect health data.', p_health: null, p_findings: [], p_fixes: [], p_suggestions: [], p_error: hErr.message });
@@ -55,28 +69,63 @@ Deno.serve(async (req) => {
 
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY') || (await sb.rpc('agent_get_secret', { p_name: 'anthropic_api_key' })).data;
   const workspace = Deno.env.get('ANTHROPIC_WORKSPACE_ID') || (await sb.rpc('agent_get_secret', { p_name: 'anthropic_workspace_id' })).data;
-  if (!apiKey) {
-    await sb.rpc('agent_save_run', { p_trigger: trigger, p_status: 'needs_key', p_summary: 'The agent has no Claude API key yet. Add it in the AI Night Agent tab.', p_health: health, p_findings: [], p_fixes: [], p_suggestions: [], p_error: null });
+  if (!apiKey && !Deno.env.get('GROQ_API_KEY') && !Deno.env.get('GEMINI_API_KEY')) {
+    await sb.rpc('agent_save_run', { p_trigger: trigger, p_status: 'needs_key', p_summary: 'The agent has no AI key yet. Add a Claude API key in the AI Night Agent tab.', p_health: health, p_findings: [], p_fixes: [], p_suggestions: [], p_error: null });
     return json({ status: 'needs_key' });
   }
 
-  const headers: Record<string, string> = { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
+  const headers: Record<string, string> = { 'x-api-key': apiKey ?? '', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' };
   if (workspace) headers['anthropic-workspace-id'] = workspace;
 
   let parsed: { summary?: string; findings?: unknown[]; fixes?: string[]; suggestions?: unknown[] } | null = null;
-  let apiError: string | null = null;
+  let apiError = '';
+  let engine = 'claude';
+  const userMsg = 'Health counters (JSON):\n' + JSON.stringify(health);
+  const parseJson = (text: string) => {
+    const cleaned = text.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    return JSON.parse(cleaned.slice(cleaned.indexOf('{'), cleaned.lastIndexOf('}') + 1));
+  };
+
   try {
+    if (!apiKey) throw new Error('no key saved');
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers,
-      body: JSON.stringify({ model: MODEL, max_tokens: 2000, system: SYSTEM, messages: [{ role: 'user', content: 'Health counters (JSON):\n' + JSON.stringify(health) }] }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 2000, system: SYSTEM, messages: [{ role: 'user', content: userMsg }] }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error?.message || `Claude API error ${res.status}`);
     const text: string = (data.content ?? []).filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join('');
-    const cleaned = text.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-    parsed = JSON.parse(cleaned.slice(cleaned.indexOf('{'), cleaned.lastIndexOf('}') + 1));
+    parsed = parseJson(text);
   } catch (e) {
-    apiError = e instanceof Error ? e.message : String(e);
+    apiError = 'Claude: ' + (e instanceof Error ? e.message : String(e));
+  }
+
+  // Fallback: the AI services the coach already uses (Groq, then Gemini), if Claude is unavailable.
+  const groq = Deno.env.get('GROQ_API_KEY');
+  if (!parsed && groq) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST', headers: { Authorization: `Bearer ${groq}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', temperature: 0.2, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: userMsg }] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || `Groq error ${res.status}`);
+      parsed = parseJson(data?.choices?.[0]?.message?.content ?? ''); engine = 'groq';
+    } catch (e) { apiError += ' | Groq: ' + (e instanceof Error ? e.message : String(e)); }
+  }
+  const gemini = Deno.env.get('GEMINI_API_KEY');
+  if (!parsed && gemini) {
+    for (const m of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']) {
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${gemini}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ parts: [{ text: userMsg }] }] }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error?.message || `Gemini error ${res.status}`);
+        parsed = parseJson(data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''); engine = 'gemini'; break;
+      } catch (e) { apiError += ` | Gemini(${m}): ` + (e instanceof Error ? e.message : String(e)); }
+    }
   }
 
   if (!parsed) {
@@ -97,8 +146,8 @@ Deno.serve(async (req) => {
   }
 
   const { data: runId } = await sb.rpc('agent_save_run', {
-    p_trigger: trigger, p_status: 'ok', p_summary: parsed.summary ?? '', p_health: health,
+    p_trigger: trigger, p_status: 'ok', p_summary: (engine === 'claude' ? '' : `[via ${engine}] `) + (parsed.summary ?? ''), p_health: health,
     p_findings: (parsed.findings ?? []).slice(0, 6), p_fixes: fixes, p_suggestions: (parsed.suggestions ?? []).slice(0, 4), p_error: null,
   });
-  return json({ status: 'ok', run_id: runId, summary: parsed.summary, fixes });
+  return json({ status: 'ok', engine, run_id: runId, summary: parsed.summary, fixes });
 });

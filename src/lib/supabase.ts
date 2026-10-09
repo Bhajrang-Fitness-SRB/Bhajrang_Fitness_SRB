@@ -45,6 +45,21 @@ export type PendingApproval = {
   created_at: string | null;
   gender: string | null;
   goal?: string | null;
+  whatsapp?: string | null;
+  blood_group?: string | null;
+  marital_status?: string | null;
+  father_name?: string | null;
+  govt_id?: string | null;
+  occupation?: string | null;
+  gym_experience_years?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pin?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  medical_conditions?: string | null;
+  health_consent?: boolean | null;
+  photo_base64?: string | null;
 };
 
 export type AttendanceLog = {

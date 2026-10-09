@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bot, Check, Play, X } from 'lucide-react';
+import { Bot, Check, Play, X, Plug } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Finding = { severity?: string; title?: string; detail?: string };
@@ -14,6 +14,70 @@ const FIX_LABEL: Record<string, string> = {
   purge_old_error_log: 'Trimmed old error log',
 };
 const sevColor = (s?: string) => (s === 'critical' ? 'var(--red, #ff5d5d)' : s === 'warning' ? 'var(--gold)' : 'var(--green)');
+
+
+type Status = { whatsapp: boolean; email: boolean; email_custom_sender: boolean; push: boolean; telegram: boolean; ai_coach: boolean; gemini: boolean; groq: boolean; claude_key_saved: boolean; auth_grace_on: boolean };
+type Member = { member_id: string; name: string | null; phone: string | null; whatsapp: string | null; email: string | null };
+
+/** Owner: see which integrations are configured and send a real test to a member (default: the owner's own profile). */
+function ConnectionsCheck({ passcode, notify }: { passcode: string; notify: (m: string) => void }) {
+  const [status, setStatus] = useState<Status | null>(null);
+  const [memberId, setMemberId] = useState('SRB92900107');
+  const [results, setResults] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState('');
+
+  const check = async () => {
+    setBusy('status');
+    const { data, error } = await supabase.functions.invoke('nightly-agent', { body: { passcode, action: 'status' } });
+    setBusy('');
+    if (error) { notify('Could not check connections.'); return; }
+    setStatus(data as Status);
+  };
+  const getMember = async (): Promise<Member | null> => {
+    const { data } = await supabase.rpc('admin_list_members', { p_passcode: passcode });
+    const m = ((data as Member[]) ?? []).find(x => x.member_id.toUpperCase() === memberId.trim().toUpperCase());
+    if (!m) notify('Member not found.');
+    return m ?? null;
+  };
+  const describe = (d: Record<string, unknown> | null, err: unknown): string => {
+    if (err) return '✗ Could not reach the service.';
+    if (!d) return '✗ No response.';
+    if (d.configured === false) return `✗ Not set up: ${String(d.reason ?? '')}`;
+    if (d.ok === false) return `✗ Failed: ${JSON.stringify(d.reason ?? d.error ?? d.data ?? '').slice(0, 220)}`;
+    if (d.text) return `✓ Working (${String(d.engine)})`;
+    if (d.ok === true || d.configured === true) return '✓ Sent. Check the phone / inbox.';
+    return `✗ ${JSON.stringify(d).slice(0, 200)}`;
+  };
+  const test = async (kind: 'whatsapp' | 'email' | 'push' | 'telegram' | 'ai') => {
+    setBusy(kind);
+    const m = kind === 'telegram' || kind === 'ai' ? null : await getMember();
+    if (kind !== 'telegram' && kind !== 'ai' && !m) { setBusy(''); return; }
+    let res: { data: unknown; error: unknown };
+    if (kind === 'whatsapp') res = await supabase.functions.invoke('send-whatsapp', { body: { passcode, kind: 'test', to: m!.whatsapp || m!.phone } });
+    else if (kind === 'email') res = await supabase.functions.invoke('send-email', { body: { passcode, to: m!.email, toName: m!.name, subject: 'Bhajrang Fitness — test email', text: `Hi ${m!.name},\n\nThis is a test email from your gym system. If you can read this, email is working.\n\nTeam Bhajrang Fitness` } });
+    else if (kind === 'push') res = await supabase.functions.invoke('send-push', { body: { passcode, member_id: m!.member_id, title: 'Bhajrang Fitness', message: 'Test notification — push is working 💪' } });
+    else if (kind === 'telegram') res = await supabase.functions.invoke('notify-telegram', { body: { passcode, message: '✅ Bhajrang Fitness test: Telegram alerts are working.' } });
+    else res = await supabase.functions.invoke('ai-coach', { body: { passcode, prompt: 'Reply with the single word OK.' } });
+    setResults(r => ({ ...r, [kind]: describe(res.data as Record<string, unknown> | null, res.error) }));
+    setBusy('');
+  };
+  const row = (label: string, ok: boolean | undefined, kind: 'whatsapp' | 'email' | 'push' | 'telegram' | 'ai', extra?: string) => <div key={kind} style={{ borderTop: '1px solid var(--line)', padding: '10px 0', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+    <div style={{ flex: 1, minWidth: 180 }}><b>{label}</b> {status && <span style={{ color: ok ? 'var(--green)' : 'var(--gold)', fontSize: 12 }}>{ok ? '● keys saved' : '○ keys missing'}</span>}
+      {extra && <div className="muted" style={{ fontSize: 11 }}>{extra}</div>}{results[kind] && <div style={{ fontSize: 12, marginTop: 4 }}>{results[kind]}</div>}</div>
+    <button className="button ghost" style={{ padding: '6px 12px' }} disabled={!!busy} onClick={() => void test(kind)}>{busy === kind ? 'Testing…' : 'Send test'}</button></div>;
+
+  return <div className="card" style={{ marginBottom: 20 }}>
+    <div className="card-title"><span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}><Plug size={15} /> Connections check</span>
+      <button className="button ghost" style={{ padding: '4px 10px' }} disabled={!!busy} onClick={() => void check()}>{busy === 'status' ? 'Checking…' : 'Check now'}</button></div>
+    <div className="field" style={{ maxWidth: 260 }}><label>Send tests to member ID</label><input value={memberId} onChange={e => setMemberId(e.target.value)} /></div>
+    {row('WhatsApp', status?.whatsapp, 'whatsapp', 'Sends Meta’s “hello_world” template to the member’s WhatsApp number.')}
+    {row('Email', status?.email, 'email', status ? (status.email_custom_sender ? 'Custom sender set.' : 'Using Resend’s test sender: it can only email your own Resend login address.') : undefined)}
+    {row('Push notification', status?.push, 'push', 'Reaches a member only after they open the Warrior app and allow notifications.')}
+    {row('Telegram alerts', status?.telegram, 'telegram')}
+    {row('AI coach (Gemini / Groq)', status?.ai_coach, 'ai', status ? `Gemini key: ${status.gemini ? 'yes' : 'no'} · Groq key: ${status.groq ? 'yes' : 'no'}` : undefined)}
+    {status?.auth_grace_on && <p style={{ color: 'var(--red, #ff5d5d)', fontSize: 12 }}>⚠ AUTH_GRACE is ON — anyone can call your messaging functions. Delete that secret in Supabase.</p>}
+  </div>;
+}
 
 /** Owner only: nightly AI agent report, suggestions to approve, credentials. */
 export function AgentDesk({ passcode, notify }: { passcode: string; notify: (m: string) => void }) {
@@ -59,7 +123,7 @@ export function AgentDesk({ passcode, notify }: { passcode: string; notify: (m: 
   return <>
     <div className="page-head"><div><p className="eyebrow">Runs every night at 2:00 AM</p><h1 className="title">AI Night Agent</h1>
       <p className="sub">Claude checks the gym app's health every night, tidies up safe things by itself, and suggests improvements. Nothing is added to the app until you approve it.</p></div>
-      <button className="button cyan" disabled={busy || !data.has_key} onClick={() => void runNow()}><Play size={15} /> {busy ? 'Analysing…' : 'Run now'}</button></div>
+      <button className="button cyan" disabled={busy} onClick={() => void runNow()}><Play size={15} /> {busy ? 'Analysing…' : 'Run now'}</button></div>
 
     <div className="card" style={{ marginBottom: 20, borderColor: data.has_key ? 'var(--line)' : 'var(--gold)' }}>
       <div className="card-title"><span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}><Bot size={15} /> Claude connection</span>
@@ -71,6 +135,8 @@ export function AgentDesk({ passcode, notify }: { passcode: string; notify: (m: 
       <button className="button primary" style={{ marginTop: 12 }} onClick={() => void saveCreds()}>Save securely</button>
       <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>Stored encrypted in Supabase Vault. The agent only ever sees anonymous counts — never names, phone numbers or photos.</p>
     </div>
+
+    <ConnectionsCheck passcode={passcode} notify={notify} />
 
     {last && <div className="card" style={{ marginBottom: 20 }}>
       <div className="card-title"><span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Last report</span><span>{new Date(last.ran_at).toLocaleString()} · {last.trigger}</span></div>
