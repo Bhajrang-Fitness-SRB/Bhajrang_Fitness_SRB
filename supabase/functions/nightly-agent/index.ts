@@ -23,6 +23,35 @@ Reply with ONE JSON object and nothing else (no markdown):
 Allowed fix ids (use only these, only when the counters show something to clean): ${ALLOWED_FIXES.join(', ')}.
 Rules: be concrete and non-alarmist; do not invent problems the counters do not show; at most 6 findings and 4 suggestions; suggestions must be genuinely useful features or fixes, never repeat obvious ones; write for a non-technical owner.`;
 
+// Pick currently-available models instead of hard-coding names that get retired.
+async function geminiModels(key: string): Promise<string[]> {
+  const preferred = ['gemini-3.8-flash'];
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key=${key}`);
+    if (r.ok) {
+      const d = await r.json();
+      const found: string[] = (d.models ?? [])
+        .filter((m: { supportedGenerationMethods?: string[]; name?: string }) => m.supportedGenerationMethods?.includes('generateContent') && /flash/i.test(m.name ?? '') && !/(image|tts|live|audio|thinking|lite|embed)/i.test(m.name ?? ''))
+        .map((m: { name: string }) => m.name.replace('models/', ''))
+        .sort().reverse();
+      return Array.from(new Set([...preferred, ...found])).slice(0, 4);
+    }
+  } catch { /* use preferred */ }
+  return preferred;
+}
+async function groqModels(key: string): Promise<string[]> {
+  try {
+    const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${key}` } });
+    if (r.ok) {
+      const d = await r.json();
+      const ids: string[] = (d.data ?? []).map((m: { id: string }) => m.id).filter((id: string) => !/(whisper|tts|guard|embed|orpheus|playai|distil)/i.test(id));
+      const score = (id: string) => (/llama.*(70b|versatile)/i.test(id) ? 3 : /gpt-oss-120b/i.test(id) ? 2 : /llama/i.test(id) ? 1 : 0);
+      return ids.sort((a, b) => score(b) - score(a)).slice(0, 4);
+    }
+  } catch { /* none */ }
+  return [];
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
@@ -103,19 +132,21 @@ Deno.serve(async (req) => {
   // Fallback: the AI services the coach already uses (Groq, then Gemini), if Claude is unavailable.
   const groq = Deno.env.get('GROQ_API_KEY');
   if (!parsed && groq) {
-    try {
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST', headers: { Authorization: `Bearer ${groq}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', temperature: 0.2, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: userMsg }] }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error?.message || `Groq error ${res.status}`);
-      parsed = parseJson(data?.choices?.[0]?.message?.content ?? ''); engine = 'groq';
-    } catch (e) { apiError += ' | Groq: ' + (e instanceof Error ? e.message : String(e)); }
+    for (const model of await groqModels(groq)) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST', headers: { Authorization: `Bearer ${groq}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, temperature: 0.2, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: userMsg }] }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error?.message || `Groq error ${res.status}`);
+        parsed = parseJson(data?.choices?.[0]?.message?.content ?? ''); engine = 'groq'; break;
+      } catch (e) { apiError += ` | Groq(${model}): ` + (e instanceof Error ? e.message : String(e)).slice(0, 120); }
+    }
   }
   const gemini = Deno.env.get('GEMINI_API_KEY');
   if (!parsed && gemini) {
-    for (const m of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']) {
+    for (const m of await geminiModels(gemini)) {
       try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${gemini}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -123,8 +154,8 @@ Deno.serve(async (req) => {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error?.message || `Gemini error ${res.status}`);
-        parsed = parseJson(data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''); engine = 'gemini'; break;
-      } catch (e) { apiError += ` | Gemini(${m}): ` + (e instanceof Error ? e.message : String(e)); }
+        parsed = parseJson(data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''); engine = 'gemini'; break;
+      } catch (e) { apiError += ` | Gemini(${m}): ` + (e instanceof Error ? e.message : String(e)).slice(0, 120); }
     }
   }
 
