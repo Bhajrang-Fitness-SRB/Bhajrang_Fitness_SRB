@@ -8,6 +8,7 @@ import { Kiosk } from './components/Kiosk';
 import { FaceAdmin } from './components/FaceAdmin';
 import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
 import { AgentDesk } from './components/AgentDesk';
+import { ExerciseVisual, VideoGuideLink } from './components/ExerciseVisual';
 import { ApplicationEditModal, ApprovalResultCard, IssueChips, checkApplication, normMobile } from './components/ApprovalTools';
 import { InstallBanner, InstallHub } from './components/InstallHub';
 import { FinesDesk, MyFines, RuleBookEditor, RuleBookView } from './components/RulesFines';
@@ -458,7 +459,7 @@ function MyWorkout({member,passcode,onBack,notify}:{member:Member;passcode:strin
         </div>
         {day&&(day.exercises.length?<div className="grid" style={{gap:12}}>
           {day.exercises.map((ex,i)=><button key={i} className="card" style={{display:'flex',alignItems:'center',gap:14,textAlign:'left',cursor:'pointer',width:'100%'}} onClick={()=>setModalEx(ex)}>
-            {ex.gif_url?<img src={ex.gif_url} alt={ex.name} style={{width:64,height:64,objectFit:'cover',borderRadius:10,flexShrink:0}}/>:<div style={{width:64,height:64,borderRadius:10,background:'rgba(255,255,255,0.05)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Dumbbell size={22}/></div>}
+            <ExerciseVisual url={ex.gif_url} name={ex.name} size={64} animate={false}/>
             <div style={{flex:1}}><b>{ex.name}</b><div className="muted" style={{fontSize:12,marginTop:2}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.est_weight?` · ${ex.est_weight}`:''}{ex.rest_seconds?` · ${ex.rest_seconds}s rest`:''}</div></div>
             <Maximize2 size={16} className="muted"/>
           </button>)}
@@ -483,12 +484,13 @@ function WorkoutGifModal({ex,member,passcode,tier,plan,dayNumber,onClose,notify}
   return <div className="modal-backdrop" onClick={onClose} style={{zIndex:200}}>
     <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:480,padding:0,overflow:'hidden'}}>
       <div style={{position:'relative',background:'#000'}}>
-        {ex.gif_url?<img src={ex.gif_url} alt={ex.name} style={{width:'100%',maxHeight:360,objectFit:'contain',display:'block',margin:'0 auto'}}/>:<div style={{height:220,display:'flex',alignItems:'center',justifyContent:'center'}}><Dumbbell size={40} style={{opacity:0.4}}/></div>}
+        <ExerciseVisual url={ex.gif_url} name={ex.name} contain/>
         <button className="close" onClick={onClose} style={{position:'absolute',top:10,right:10,background:'rgba(0,0,0,0.5)'}}><X/></button>
       </div>
       <div style={{padding:20}}>
         <h2 style={{margin:'0 0 4px'}}>{ex.name}</h2>
         <p className="sub" style={{margin:'0 0 14px'}}>{ex.sets} sets × {ex.reps} reps{ex.weight_direction?` · ${ex.weight_direction}`:''}{ex.est_weight?` · ${ex.est_weight}`:''}{ex.rest_seconds?` · rest ${ex.rest_seconds}s`:''}</p>
+        <div style={{marginBottom:14}}><VideoGuideLink name={ex.name}/></div>
         {ex.instructions&&<div style={{marginBottom:12}}><b style={{fontSize:13}}>How to perform</b><p className="sub" style={{margin:'4px 0 0',lineHeight:1.6}}>{ex.instructions}</p></div>}
         {ex.posture_tips&&<div style={{marginBottom:16}}><b style={{fontSize:13,color:'var(--gold)'}}>Posture correction</b><p className="sub" style={{margin:'4px 0 0',lineHeight:1.6}}>{ex.posture_tips}</p></div>}
         <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
@@ -1301,7 +1303,7 @@ function ExerciseLibrary({ passcode, exercises, onRefresh, notify }: { passcode:
         <select value={catFilter} onChange={e => setCatFilter(e.target.value)}><option value="all">All categories</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
       </div>
       {shown.length ? <div className="activity" style={{ maxHeight: 520, overflowY: 'auto' }}>{shown.map(x => <div className="activity-item" key={x.id}>
-        {x.gif_url ? <img src={x.gif_url} alt={x.name} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8 }} /> : <div className="activity-icon"><Dumbbell size={15} /></div>}
+        <ExerciseVisual url={x.gif_url} name={x.name} size={48} animate={false} />
         <div className="activity-copy" style={{ flex: 1 }}><b>{x.name}</b><small>{x.category}{x.muscle_group ? ` · ${x.muscle_group}` : ''}{x.equipment ? ` · ${x.equipment}` : ''}</small></div>
         <div style={{ display: 'flex', gap: 4 }}><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => edit(x)}><Settings size={13} /></button><button className="button ghost" style={{ padding: '5px 8px' }} onClick={() => remove(x)}><Trash2 size={13} /></button></div>
       </div>)}</div> : <div className="empty">{exercises.length ? 'No exercises match that search.' : 'No exercises in the library yet.'}</div>}
