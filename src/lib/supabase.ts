@@ -108,6 +108,7 @@ export type Billing = {
   due: number | null;
   payment_date: string | null;
   expiry_date: string | null;
+  start_date?: string | null;
   payment_method: string | null;
 };
 
