@@ -108,3 +108,8 @@ How it works:
 New migration: `supabase/migrations/20260923000000_rbf_owner_passcode_lockout.sql` — adds a global 5-attempt / 15-minute lockout to the owner passcode check, plus an `owner_lockout_seconds_remaining()` RPC the login screen now polls to show a live countdown instead of letting attempts be unlimited.
 
 **Run this migration on your Supabase project** (SQL editor, or your usual migration pipeline) — the frontend change alone does nothing without it.
+
+
+## Admin AI Agent Hub
+
+Owner-only master control for pooled free AI agents with approval-gated changes. See `AGENT_HUB.md`.
