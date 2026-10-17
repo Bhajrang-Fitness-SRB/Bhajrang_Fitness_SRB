@@ -1,9 +1,10 @@
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
 import { Activity, Bot, Pencil, TrendingUp, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Maximize2, Menu, Minus, Plus, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, Upload, UserCheck, UserPlus, Users, Wallet, X, Zap } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import jsQR from 'jsqr';
 import Papa from 'papaparse';
 import { supabase, type AttendanceLog, type Billing, type DayTemplateRow, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff, type WorkoutDayStruct, type WorkoutExerciseRow, type WorkoutExerciseStruct, type WorkoutPlanRow } from './lib/supabase';
+import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
 import { Kiosk } from './components/Kiosk';
 import { FaceAdmin } from './components/FaceAdmin';
 import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
@@ -15,6 +16,13 @@ import { RenewMembershipModal, MembershipCard, addMonthsClamped, todayIST, fmtDa
 import { ApplicationEditModal, ApprovalResultCard, IssueChips, checkApplication, normMobile } from './components/ApprovalTools';
 import { InstallBanner, InstallHub } from './components/InstallHub';
 import { FinesDesk, MyFines, RuleBookEditor, RuleBookView } from './components/RulesFines';
+
+// Heavy screens load only when opened, so the first screen (gate / portal) starts fast.
+const Kiosk = lazy(() => import('./components/Kiosk').then(m => ({ default: m.Kiosk })));
+const FaceAdmin = lazy(() => import('./components/FaceAdmin').then(m => ({ default: m.FaceAdmin })));
+const AgentDesk = lazy(() => import('./components/AgentDesk').then(m => ({ default: m.AgentDesk })));
+const AgentHub = lazy(() => import('./agent-hub/AgentHub').then(m => ({ default: m.AgentHub })));
+const ScreenLoading = () => <div className="empty" style={{ padding: 32, textAlign: 'center' }}>Loading…</div>;
 
 type Path = '/' | '/warrior' | '/kiosk' | '/villain' | '/join' | '/selling' | '/install';
 type AdminTab = 'overview' | 'attendance' | 'join' | 'approvals' | 'members' | 'reminders' | 'notices' | 'billing' | 'rules' | 'fines' | 'expenses' | 'inventory' | 'ai' | 'diary' | 'flyers' | 'leads' | 'workouts';
@@ -67,7 +75,7 @@ export default function App() {
     {showSplash && <div className={`splash${splashLeaving ? ' leaving' : ''}`}><img src="/brand/splash.jpg" alt="Bhajrang Fitness" /></div>}
     {path === '/' && <AdminGate notify={notify} />}
     {path === '/warrior' && <Portal onBack={home} notify={notify} />}
-    {path === '/kiosk' && <Kiosk onBack={home} notify={notify} />}
+    {path === '/kiosk' && <Suspense fallback={<ScreenLoading />}><Kiosk onBack={home} notify={notify} /></Suspense>}
     {path === '/villain' && <VillainGate onBack={home} notify={notify} />}
     {path === '/join' && <PublicSignup />}
     {path === '/selling' && <Selling onBack={home} notify={notify} />}
@@ -595,6 +603,11 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
       </div>
       {loading ? <div className="empty">Loading vault data...</div> : <div className="card"><div className="card-title">Recent floor activity <span>Last 50 punches</span></div>{attendance.length ? <div className="activity">{attendance.slice(0,10).map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy"><b>{x.member_id}</b> {x.punch_out_time?'completed a session':'checked in'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleString():''}</small></div></div>)}</div> : <div className="empty">No attendance yet.</div>}</div>}
     </>}
+    {tab === 'gate' && <Suspense fallback={<ScreenLoading />}><FaceAdmin passcode={passcode} members={members} notify={notify} /></Suspense>}
+    {tab === 'rules' && <RuleBookEditor passcode={passcode} notify={notify} />}
+    {tab === 'fines' && <FinesDesk passcode={passcode} members={members} isOwner notify={notify} />}
+    {tab === 'hub' && <Suspense fallback={<ScreenLoading />}><AgentHub passcode={passcode} notify={notify} /></Suspense>}
+    {tab === 'agent' && <Suspense fallback={<ScreenLoading />}><AgentDesk passcode={passcode} notify={notify} /></Suspense>}
     {tab === 'gate' && <FaceAdmin passcode={passcode} members={members} notify={notify} />}
     {tab === 'rules' && <RuleBookEditor passcode={passcode} notify={notify} />}
     {tab === 'fines' && <FinesDesk passcode={passcode} members={members} isOwner notify={notify} />}

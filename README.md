@@ -113,3 +113,9 @@ New migration: `supabase/migrations/20260923000000_rbf_owner_passcode_lockout.sq
 ## Admin AI Agent Hub
 
 Owner-only master control for pooled free AI agents with approval-gated changes. See `AGENT_HUB.md`.
+
+## Performance notes
+- First screen loads about 279 kB of JS (69 kB gzip), down from 910 kB. The Kiosk, Face Admin, AI Coach desk and AI Agent Hub load only when opened.
+- React, Supabase, icons, QR and CSV code sit in separate vendor chunks, so repeat visits after a deploy re-download only changed app code.
+- Service worker (`bhajrang-fitness-v4`): hashed `/assets/*` are served from cache; pages, manifests and icons are network-first with an offline fallback.
+- Checks: `npm run typecheck`, `npm test`, `npm run build`.
