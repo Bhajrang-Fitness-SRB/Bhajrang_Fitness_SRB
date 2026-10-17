@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "test": "npx -y tsx --test tests/agent-hub/hub.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
