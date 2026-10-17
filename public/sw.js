@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bhajrang-fitness-v2';
+const CACHE_NAME = 'bhajrang-fitness-v3';
 const APP_SHELL = ['/manifest.webmanifest', '/brand/icon-192.png', '/brand/icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -17,6 +17,8 @@ self.addEventListener('activate', (event) => {
 // so caching them is always safe and speeds up repeat visits.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // Only cache this site's own files. Never cache Supabase / API responses (they must always be live).
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   const isNavigation = event.request.mode === 'navigate' || event.request.url.endsWith('/index.html');
 
   if (isNavigation) {

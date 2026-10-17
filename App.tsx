@@ -1,9 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
 import { Activity, Bot, Pencil, TrendingUp, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Maximize2, Menu, Minus, Plus, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, Upload, UserCheck, UserPlus, Users, Wallet, X, Zap } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import Papa from 'papaparse';
 import { supabase, type AttendanceLog, type Billing, type DayTemplateRow, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff, type WorkoutDayStruct, type WorkoutExerciseRow, type WorkoutExerciseStruct, type WorkoutPlanRow } from './lib/supabase';
 import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
+import { Kiosk } from './components/Kiosk';
+import { FaceAdmin } from './components/FaceAdmin';
+import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
+import { AgentDesk } from './components/AgentDesk';
+import { AgentHub } from './agent-hub/AgentHub';
 import { MoneyDesk, ExpenseModal as MoneyExpenseModal, CashCountModal } from './components/MoneyDesk';
 import { ExerciseVisual, VideoGuideLink } from './components/ExerciseVisual';
 import { RenewMembershipModal, MembershipCard, addMonthsClamped, todayIST, fmtDay, type LiveMembership } from './components/RenewalDesk';
@@ -602,6 +608,11 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     {tab === 'fines' && <FinesDesk passcode={passcode} members={members} isOwner notify={notify} />}
     {tab === 'hub' && <Suspense fallback={<ScreenLoading />}><AgentHub passcode={passcode} notify={notify} /></Suspense>}
     {tab === 'agent' && <Suspense fallback={<ScreenLoading />}><AgentDesk passcode={passcode} notify={notify} /></Suspense>}
+    {tab === 'gate' && <FaceAdmin passcode={passcode} members={members} notify={notify} />}
+    {tab === 'rules' && <RuleBookEditor passcode={passcode} notify={notify} />}
+    {tab === 'fines' && <FinesDesk passcode={passcode} members={members} isOwner notify={notify} />}
+    {tab === 'hub' && <AgentHub passcode={passcode} notify={notify} />}
+    {tab === 'agent' && <AgentDesk passcode={passcode} notify={notify} />}
     {tab === 'money' && <MoneyDesk passcode={passcode} notify={notify} />}
     {tab === 'staff' && <StaffControl staff={staff} passcode={passcode} onRefresh={load} notify={notify} />}
     {tab === 'vault' && <MemberVaultAccess members={members} passcode={passcode} notify={notify} />}

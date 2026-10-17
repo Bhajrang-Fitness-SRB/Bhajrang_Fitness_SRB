@@ -1,16 +1,36 @@
 {
-  "name": "Bhajrang Fitness — RB Warriors Gym OS",
-  "short_name": "Bhajrang Fitness",
-  "description": "Bhajrang Fitness gym management system. Desk, Warrior app, AI kiosk, and owner vault.",
+  "name": "Bhajrang Fitness — Staff Desk",
+  "short_name": "Staff",
+  "description": "Staff desk: members, approvals, attendance, billing and fines.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#080b12",
   "theme_color": "#080b12",
-  "categories": ["health", "fitness", "business"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "icons": [
-    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/brand/icon-staff-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon-staff-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon-staff-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
