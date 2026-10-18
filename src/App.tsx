@@ -9,7 +9,7 @@ import { FaceAdmin } from './components/FaceAdmin';
 import { Avatar, MemberFaceScan, FaceScanRequestsDesk } from './components/MemberFace';
 import { AgentDesk } from './components/AgentDesk';
 const RetentionDesk = lazy(() => import('./components/RetentionDesk').then(m => ({ default: m.RetentionDesk })));
-const AgentHub = lazy(() => import('./components/AgentHub').then(m => ({ default: m.AgentHub })));
+const AgentHub = lazy(() => import('./agent-hub/AgentHub').then(m => ({ default: m.AgentHub })));
 import { MoneyDesk, ExpenseModal as MoneyExpenseModal, CashCountModal } from './components/MoneyDesk';
 import { ExerciseVisual, VideoGuideLink } from './components/ExerciseVisual';
 import { RenewMembershipModal, MembershipCard, addMonthsClamped, todayIST, fmtDay, type LiveMembership } from './components/RenewalDesk';
