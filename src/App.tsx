@@ -107,7 +107,7 @@ function AdminGate({ notify }: { notify: (m: string) => void }) {
 }
 function Admin({ passcode, onLock, notify }: { passcode: string; onLock: () => void; notify: (m: string) => void }) {
  const [tab,setTab]=useState<AdminTab>('overview'); const [members,setMembers]=useState<Member[]>([]); const [pending,setPending]=useState<PendingApproval[]>([]); const [billing,setBilling]=useState<Billing[]>([]); const [attendance,setAttendance]=useState<AttendanceLog[]>([]); const [expenses,setExpenses]=useState<{id:number;expense_name:string|null;amount:number|null;expense_date:string|null}[]>([]); const [loading,setLoading]=useState(true); const [showExpense,setShowExpense]=useState(false); const [navOpen,setNavOpen]=useState(false); const selectTab=(t:AdminTab)=>{setTab(t);setNavOpen(false)};
- const load=useCallback(async()=>{setLoading(true); const [m,p,b,a,e]=await Promise.all([supabase.rpc('admin_list_members',{p_passcode:passcode}),supabase.rpc('admin_list_pending_approvals',{p_passcode:passcode}),supabase.rpc('admin_list_billing',{p_passcode:passcode}),supabase.from('attendance_logs').select('*').order('punch_in_time',{ascending:false}),supabase.rpc('admin_list_expenses',{p_passcode:passcode})]); if(m.data)setMembers(m.data);if(p.data)setPending(p.data);if(b.data)setBilling(b.data);if(a.data)setAttendance(a.data);if(e.data)setExpenses(e.data);setLoading(false)},[passcode]); useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),10000);return()=>window.clearInterval(timer)},[load]);
+ const load=useCallback(async()=>{setLoading(true); const [m,p,b,a,e]=await Promise.all([supabase.rpc('admin_list_members',{p_passcode:passcode}),supabase.rpc('admin_list_pending_approvals',{p_passcode:passcode}),supabase.rpc('admin_list_billing',{p_passcode:passcode}),supabase.rpc('admin_list_attendance',{p_passcode:passcode,p_limit:2000}),supabase.rpc('admin_list_expenses',{p_passcode:passcode})]); if(m.data)setMembers(m.data);if(p.data)setPending(p.data);if(b.data)setBilling(b.data);if(a.data)setAttendance(a.data);if(e.data)setExpenses(e.data);setLoading(false)},[passcode]); useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),10000);return()=>window.clearInterval(timer)},[load]);
  const revenue=billing.reduce((s,x)=>s+(x.paid??0),0), expenseTotal=expenses.reduce((s,x)=>s+(x.amount??0),0), active=members.filter(m=>daysLeft(m.expiry_date)>0).length, present=attendance.filter(x=>x.punch_in_time&&new Date(x.punch_in_time).toDateString()===new Date().toDateString()&&!x.punch_out_time).length;
  const dueCount=billing.filter(x=>(x.due??0)>0).length;
  const renewalsSoon=members.filter(m=>{const d=daysLeft(m.expiry_date);return d>0&&d<=7}).length;
@@ -405,10 +405,10 @@ function MemberPortal({member:memberProp,passcode,onLogout,notify}:{member:Membe
   const [notices,setNotices]=useState<{id:string;title:string;body:string}[]>([]);
   const [brochureUrl,setBrochureUrl]=useState('');
   useEffect(()=>{void supabase.from('gym_settings').select('value').eq('key','brochure_url').maybeSingle().then(({data})=>setBrochureUrl(data?.value||''))},[]);
-  useEffect(()=>{void supabase.from('attendance_logs').select('*').eq('member_id',member.member_id).order('punch_in_time',{ascending:false}).limit(8).then(({data})=>setHistory(data??[]))},[member.member_id]);
+  useEffect(()=>{void supabase.rpc('member_my_attendance',{p_member_id:member.member_id,p_passcode:passcode,p_limit:8}).then(({data})=>setHistory((data as AttendanceLog[])??[]))},[member.member_id,passcode]);
   useEffect(()=>{void supabase.from('notices').select('id,title,body').eq('active',true).order('created_at',{ascending:false}).limit(3).then(({data})=>setNotices(data??[]))},[]);
   if(showWorkout) return <MyWorkout member={member} passcode={passcode} onBack={()=>setShowWorkout(false)} notify={notify}/>;
-  return <><main className="portal"><InstallAppBanner/>{notices.length>0&&<div className="card" style={{marginBottom:18,borderColor:'var(--gold)'}}><div className="card-title"><Bell size={15} color="var(--gold)"/> Gym notices</div>{notices.map(n=><div key={n.id} style={{marginBottom:8}}><b>{n.title}</b>{n.body&&<p className="muted" style={{margin:'2px 0 0'}}>{n.body}</p>}</div>)}</div>}<MyFines member={member} passcode={passcode}/><MembershipCard live={live}/><div className="portal-head"><div><p className="eyebrow">Welcome back, warrior</p><h1 className="title">{member.name||member.member_id}</h1><p className="sub">{member.member_id} · {member.package||'Active member'}</p></div><div style={{display:'flex',alignItems:'center',gap:12}}><button className="button ghost" onClick={onLogout}><LogOut size={15}/> Lock vault</button><Avatar src={member.profile_pic} name={member.name||member.member_id} size={46}/></div></div><button className="card" style={{width:'100%',display:'flex',alignItems:'center',gap:14,marginBottom:18,cursor:'pointer',border:'1px solid var(--gold)',background:'linear-gradient(135deg,rgba(255,193,7,0.08),transparent)'}} onClick={()=>setShowWorkout(true)}><div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Dumbbell size={22} color="#0a0e14"/></div><div style={{textAlign:'left',flex:1}}><b style={{fontSize:15}}>My Workout Plan</b><p className="sub" style={{margin:'2px 0 0'}}>Your training schedule with visual movement guides</p></div><ChevronRight size={18}/></button><div className="grid portal-grid"><div className="card" style={{textAlign:'center'}}><div className="card-title">Digital gate pass <span>Scan at entrance</span></div><div className="qr"><QRCodeSVG value={member.member_id} size={190}/></div><p className="sub">Show this code to the AI kiosk</p></div><div className="card"><div className="card-title">Membership status <span className="pill">{daysLeft(member.expiry_date)>0?'ACTIVE':'EXPIRED'}</span></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'end'}}><div><div className="stat-value" style={{color:'var(--cyan)'}}>{daysLeft(member.expiry_date)}</div><div className="result-label">days remaining</div></div><Target size={42} color="var(--gold)"/></div><div className="progress"><i style={{width:`${Math.min(100,Math.max(4,daysLeft(member.expiry_date)/30*100))}%`}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:14,fontSize:12}}><span className="muted">Started</span><b>{member.joining_date||'—'}</b><span className="muted">Expires</span><b>{member.expiry_date||'—'}</b></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="button primary" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowRenew(true)}><CreditCard size={15}/> Renew</button><button className="button ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowFreeze(true)}><Clock3 size={15}/> Freeze</button></div><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowEdit(true)}><Settings size={15}/> Update my details</button><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowRules(true)}><FileText size={15}/> Gym rule book</button><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowFace(true)}><UserCheck size={15}/> Face scan check-in (setting)</button><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>{enablePushForMember(member.member_id);notify('Notifications enabled — allow the browser prompt if one appears.')}}><Radio size={15}/> Enable push notifications</button>{brochureUrl&&<a href={brochureUrl} target="_blank" rel="noreferrer" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}}><FileText size={15}/> Gym brochure & packages</a>}</div><div className="card"><div className="card-title">My recent attendance <span>Last 8 visits</span></div>{history.length?<div className="activity">{history.map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy">{x.punch_in_time?new Date(x.punch_in_time).toLocaleDateString():'—'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''} {x.punch_out_time?`→ ${new Date(x.punch_out_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'(still in)'}</small></div></div>)}</div>:<div className="empty">No visits logged yet.</div>}</div></div><ProgressPhotos memberId={member.member_id} notify={notify}/><WaterTracker weightKg={member.weight_kg} notify={notify} storageKey={`bf_water_${member.member_id}`}/><Calculators notify={notify}/></main>{showRenew&&<RenewModal member={member} passcode={passcode} onClose={()=>setShowRenew(false)} onSaved={()=>{notify('Renewal request sent — pay via the QR shown, or at reception.');loadLive()}}/>}{showFreeze&&<FreezeModal member={member} onClose={()=>setShowFreeze(false)} onSaved={()=>{setShowFreeze(false);notify('Freeze request sent to reception.')}}/>}{showEdit&&<MemberSelfEdit member={member} onClose={()=>setShowEdit(false)} notify={notify}/>}{showRules&&<RuleBookView onClose={()=>setShowRules(false)}/>}{showFace&&<MemberFaceScan member={member} passcode={passcode} onClose={()=>setShowFace(false)} notify={notify}/>}</>;
+  return <><main className="portal"><InstallAppBanner/>{notices.length>0&&<div className="card" style={{marginBottom:18,borderColor:'var(--gold)'}}><div className="card-title"><Bell size={15} color="var(--gold)"/> Gym notices</div>{notices.map(n=><div key={n.id} style={{marginBottom:8}}><b>{n.title}</b>{n.body&&<p className="muted" style={{margin:'2px 0 0'}}>{n.body}</p>}</div>)}</div>}<MyFines member={member} passcode={passcode}/><MembershipCard live={live}/><div className="portal-head"><div><p className="eyebrow">Welcome back, warrior</p><h1 className="title">{member.name||member.member_id}</h1><p className="sub">{member.member_id} · {member.package||'Active member'}</p></div><div style={{display:'flex',alignItems:'center',gap:12}}><button className="button ghost" onClick={onLogout}><LogOut size={15}/> Lock vault</button><Avatar src={member.profile_pic} name={member.name||member.member_id} size={46}/></div></div><button className="card" style={{width:'100%',display:'flex',alignItems:'center',gap:14,marginBottom:18,cursor:'pointer',border:'1px solid var(--gold)',background:'linear-gradient(135deg,rgba(255,193,7,0.08),transparent)'}} onClick={()=>setShowWorkout(true)}><div style={{width:44,height:44,borderRadius:12,background:'var(--gold)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Dumbbell size={22} color="#0a0e14"/></div><div style={{textAlign:'left',flex:1}}><b style={{fontSize:15}}>My Workout Plan</b><p className="sub" style={{margin:'2px 0 0'}}>Your training schedule with visual movement guides</p></div><ChevronRight size={18}/></button><div className="grid portal-grid"><div className="card" style={{textAlign:'center'}}><div className="card-title">Digital gate pass <span>Scan at entrance</span></div><div className="qr"><QRCodeSVG value={member.member_id} size={190}/></div><p className="sub">Show this code to the AI kiosk</p></div><div className="card"><div className="card-title">Membership status <span className="pill">{daysLeft(member.expiry_date)>0?'ACTIVE':'EXPIRED'}</span></div><div style={{display:'flex',justifyContent:'space-between',alignItems:'end'}}><div><div className="stat-value" style={{color:'var(--cyan)'}}>{daysLeft(member.expiry_date)}</div><div className="result-label">days remaining</div></div><Target size={42} color="var(--gold)"/></div><div className="progress"><i style={{width:`${Math.min(100,Math.max(4,daysLeft(member.expiry_date)/30*100))}%`}}/></div><div style={{display:'flex',justifyContent:'space-between',marginTop:14,fontSize:12}}><span className="muted">Started</span><b>{member.joining_date||'—'}</b><span className="muted">Expires</span><b>{member.expiry_date||'—'}</b></div><div style={{display:'flex',gap:8,marginTop:16}}><button className="button primary" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowRenew(true)}><CreditCard size={15}/> Renew</button><button className="button ghost" style={{flex:1,justifyContent:'center'}} onClick={()=>setShowFreeze(true)}><Clock3 size={15}/> Freeze</button></div><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowEdit(true)}><Settings size={15}/> Update my details</button><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowRules(true)}><FileText size={15}/> Gym rule book</button><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>setShowFace(true)}><UserCheck size={15}/> Face scan check-in (setting)</button><button className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>{enablePushForMember(member.member_id);notify('Notifications enabled — allow the browser prompt if one appears.')}}><Radio size={15}/> Enable push notifications</button>{brochureUrl&&<a href={brochureUrl} target="_blank" rel="noreferrer" className="button ghost" style={{width:'100%',justifyContent:'center',marginTop:8}}><FileText size={15}/> Gym brochure & packages</a>}</div><div className="card"><div className="card-title">My recent attendance <span>Last 8 visits</span></div>{history.length?<div className="activity">{history.map(x=><div className="activity-item" key={x.id}><div className="activity-icon"><UserCheck size={15}/></div><div className="activity-copy">{x.punch_in_time?new Date(x.punch_in_time).toLocaleDateString():'—'}<small>{x.punch_in_time?new Date(x.punch_in_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):''} {x.punch_out_time?`→ ${new Date(x.punch_out_time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'(still in)'}</small></div></div>)}</div>:<div className="empty">No visits logged yet.</div>}</div></div><ProgressPhotos memberId={member.member_id} passcode={passcode} notify={notify}/><WaterTracker weightKg={member.weight_kg} notify={notify} storageKey={`bf_water_${member.member_id}`}/><Calculators notify={notify}/></main>{showRenew&&<RenewModal member={member} passcode={passcode} onClose={()=>setShowRenew(false)} onSaved={()=>{notify('Renewal request sent — pay via the QR shown, or at reception.');loadLive()}}/>}{showFreeze&&<FreezeModal member={member} passcode={passcode} onClose={()=>setShowFreeze(false)} onSaved={()=>{setShowFreeze(false);notify('Freeze request sent to reception.')}}/>}{showEdit&&<MemberSelfEdit member={member} onClose={()=>setShowEdit(false)} notify={notify}/>}{showRules&&<RuleBookView onClose={()=>setShowRules(false)}/>}{showFace&&<MemberFaceScan member={member} passcode={passcode} onClose={()=>setShowFace(false)} notify={notify}/>}</>;
 }
 function MyWorkout({member,passcode,onBack,notify}:{member:Member;passcode:string;onBack:()=>void;notify:(m:string)=>void}){
   type Ex={exercise_id:string;name:string;gif_url:string|null;category:string|null;muscle_group:string|null;instructions:string|null;posture_tips:string|null;sets:string;reps:string;weight_direction:string;est_weight:string;rest_seconds:string;notes:string};
@@ -494,9 +494,9 @@ function WorkoutGifModal({ex,member,passcode,tier,plan,dayNumber,onClose,notify}
   </div>;
 }
 
-function FreezeModal({member,onClose,onSaved}:{member:Member;onClose:()=>void;onSaved:()=>void}){
+function FreezeModal({member,passcode,onClose,onSaved}:{member:Member;passcode:string;onClose:()=>void;onSaved:()=>void}){
   const [reason,setReason]=useState('');const [saving,setSaving]=useState(false);
-  const submit=async(e:FormEvent)=>{e.preventDefault();setSaving(true);const {error}=await supabase.from('freeze_requests').insert({member_id:member.member_id,reason});setSaving(false);if(!error)onSaved()};
+  const submit=async(e:FormEvent)=>{e.preventDefault();setSaving(true);const {error}=await supabase.rpc('member_request_freeze',{p_member_id:member.member_id,p_passcode:passcode,p_reason:reason});setSaving(false);if(!error)onSaved()};
   return <div className="modal-backdrop"><form className="modal" onSubmit={submit}><div className="modal-head"><div><p className="eyebrow">Freeze request</p><h2 style={{margin:0}}>Pause your membership</h2><p className="sub">Reception will review and confirm your freeze period.</p></div><button type="button" className="close" onClick={onClose}><X/></button></div><div className="field full"><label>Reason (optional)</label><textarea rows={3} value={reason} onChange={e=>setReason(e.target.value)} placeholder="e.g. traveling for 3 weeks"/></div><div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:22}}><button type="button" className="button ghost" onClick={onClose}>Cancel</button><button className="button primary" disabled={saving}>{saving?'Sending...':'Send request'}</button></div></form></div>;
 }
 function RenewModal({member,passcode,onClose,onSaved}:{member:Member;passcode:string;onClose:()=>void;onSaved:()=>void}){
@@ -565,7 +565,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
       supabase.rpc('admin_list_members', { p_passcode: passcode }),
       supabase.rpc('admin_list_billing', { p_passcode: passcode }),
       supabase.rpc('admin_list_expenses', { p_passcode: passcode }),
-      supabase.from('attendance_logs').select('*').order('punch_in_time', { ascending: false }).limit(50),
+      supabase.rpc('admin_list_attendance', { p_passcode: passcode, p_limit: 50 }),
       supabase.rpc('admin_list_staff', { p_passcode: passcode }),
     ]);
     setMembers(m.data ?? []); setBilling(b.data ?? []); setExpenses(e.data ?? []); setAttendance(a.data ?? []); setStaff((s.data as Staff[]) ?? []);
@@ -661,17 +661,17 @@ function Diary({ notify }: { notify: (m: string) => void }) {
   const [filterTag, setFilterTag] = useState<string>('All');
   const [form, setForm] = useState({ author: '', tag: 'General', title: '', note: '' });
   const [saving, setSaving] = useState(false);
-  const load = useCallback(async () => { setLoading(true); const { data } = await supabase.from('diary_entries').select('*').order('entry_date', { ascending: false }).order('created_at', { ascending: false }); setEntries((data as DiaryEntry[]) ?? []); setLoading(false); }, []);
+  const load = useCallback(async () => { setLoading(true); const { data } = await supabase.rpc('admin_diary_list', { p_passcode: adminPass() }); setEntries((data as DiaryEntry[]) ?? []); setLoading(false); }, []);
   useEffect(() => { void load(); }, [load]);
   const add = async (e: FormEvent) => {
     e.preventDefault(); if (!form.title.trim()) { notify('Add a title first.'); return; }
     setSaving(true);
-    const { error } = await supabase.from('diary_entries').insert({ author: form.author || 'Staff', tag: form.tag, title: form.title, note: form.note });
+    const { error } = await supabase.rpc('admin_diary_add', { p_passcode: adminPass(), p_author: form.author || 'Staff', p_tag: form.tag, p_title: form.title, p_note: form.note });
     setSaving(false);
     if (error) { notify('Could not save entry.'); return; }
     setForm({ author: form.author, tag: 'General', title: '', note: '' }); notify('Diary entry saved.'); void load();
   };
-  const remove = async (id: string) => { await supabase.from('diary_entries').delete().eq('id', id); void load(); };
+  const remove = async (id: string) => { await supabase.rpc('admin_diary_delete', { p_passcode: adminPass(), p_id: id }); void load(); };
   const shown = filterTag === 'All' ? entries : entries.filter(e => e.tag === filterTag);
   return <>
     <div className="page-head"><div><p className="eyebrow">Daily log</p><h1 className="title">Gym Diary</h1><p className="sub">Every note, incident, decision, and reminder — dated and searchable, in one place.</p></div></div>
@@ -802,7 +802,7 @@ function FlyerStudio({ notify }: { notify: (m: string) => void }) {
   };
   const postAsNotice = async () => {
     setPosting(true);
-    await supabase.from('notices').insert({ title: headline, body: `${subline}\n${footer}`, active: true });
+    await supabase.rpc('admin_notice_add', { p_passcode: adminPass(), p_title: headline, p_body: `${subline}\n${footer}` });
     setPosting(false);
     notify('Posted to every member\'s Warrior app under Notices.');
   };
@@ -891,8 +891,8 @@ function ManualAttendance({ members, attendance, notify, onRefresh }: { members:
   const todays = attendance.filter(x => x.punch_in_time && new Date(x.punch_in_time).toDateString() === today);
   const mark = async (m: Member) => {
     const existing = todays.find(x => x.member_id === m.member_id && !x.punch_out_time);
-    if (existing) { await supabase.from('attendance_logs').update({ punch_out_time: new Date().toISOString(), status: 'CHECKED_OUT' }).eq('id', existing.id); notify(`${m.name || m.member_id} checked out.`); }
-    else { await supabase.from('attendance_logs').insert({ member_id: m.member_id, status: 'CHECKED_IN' }); notify(`${m.name || m.member_id} marked present.`); }
+    if (existing) { await supabase.rpc('admin_attendance_check_out', { p_passcode: adminPass(), p_id: existing.id }); notify(`${m.name || m.member_id} checked out.`); }
+    else { await supabase.rpc('admin_attendance_check_in', { p_passcode: adminPass(), p_member_id: m.member_id }); notify(`${m.name || m.member_id} marked present.`); }
     onRefresh();
   };
   return <><div className="page-head"><div><p className="eyebrow">Reception</p><h1 className="title">Manual Attendance</h1><p className="sub">For members who arrive without their QR pass or kiosk access — mark them in by hand.</p></div></div>
@@ -1013,18 +1013,18 @@ function StoreInventory({ notify }: { notify: (m: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ item_name: '', category: 'Supplement', quantity: '0', reorder_level: '5', unit_price: '0' });
   const [saving, setSaving] = useState(false);
-  const load = useCallback(async () => { setLoading(true); const { data } = await supabase.from('inventory').select('*').order('item_name', { ascending: true }); setItems((data as Inventory[]) ?? []); setLoading(false); }, []);
+  const load = useCallback(async () => { setLoading(true); const { data } = await supabase.rpc('admin_inventory_list', { p_passcode: adminPass() }); setItems((data as Inventory[]) ?? []); setLoading(false); }, []);
   useEffect(() => { void load(); }, [load]);
   const add = async (e: FormEvent) => {
     e.preventDefault(); if (!form.item_name.trim()) { notify('Add an item name first.'); return; }
     setSaving(true);
-    const { error } = await supabase.from('inventory').insert({ item_name: form.item_name, category: form.category, quantity: Number(form.quantity), reorder_level: Number(form.reorder_level), unit_price: Number(form.unit_price), last_restocked: new Date().toISOString().slice(0, 10) });
+    const { error } = await supabase.rpc('admin_inventory_add', { p_passcode: adminPass(), p_item_name: form.item_name, p_category: form.category, p_quantity: Number(form.quantity), p_reorder_level: Number(form.reorder_level), p_unit_price: Number(form.unit_price) });
     setSaving(false);
     if (error) { notify('Could not add item.'); return; }
     setForm({ item_name: '', category: form.category, quantity: '0', reorder_level: '5', unit_price: '0' }); notify(`${form.item_name} added to inventory.`); void load();
   };
-  const adjust = async (item: Inventory, delta: number) => { const next = Math.max(0, item.quantity + delta); await supabase.from('inventory').update({ quantity: next }).eq('id', item.id); void load(); };
-  const remove = async (item: Inventory) => { await supabase.from('inventory').delete().eq('id', item.id); notify(`${item.item_name} removed.`); void load(); };
+  const adjust = async (item: Inventory, delta: number) => { const next = Math.max(0, item.quantity + delta); await supabase.rpc('admin_inventory_set_quantity', { p_passcode: adminPass(), p_id: item.id, p_quantity: next }); void load(); };
+  const remove = async (item: Inventory) => { await supabase.rpc('admin_inventory_delete', { p_passcode: adminPass(), p_id: item.id }); notify(`${item.item_name} removed.`); void load(); };
   const lowStock = items.filter(i => i.quantity <= i.reorder_level);
   return <>
     <div className="page-head"><div><p className="eyebrow">Gym store</p><h1 className="title">Inventory Tracking</h1><p className="sub">Supplements, gear, and accessories — stock levels update instantly.</p></div></div>
@@ -1567,7 +1567,7 @@ function SellingOwnerPanel({ passcode, onLock, onBack, notify }: { passcode: str
     setLoading(true);
     const [s, p, sa] = await Promise.all([
       supabase.rpc('selling_admin_list_staff', { p_passcode: passcode }),
-      supabase.from('selling_products').select('*').order('name', { ascending: true }),
+      supabase.rpc('selling_list_products', { p_owner_passcode: passcode }),
       supabase.rpc('selling_admin_list_sales', { p_passcode: passcode }),
     ]);
     setStaff((s.data as SellingStaff[]) ?? []); setProducts((p.data as SellingProduct[]) ?? []); setSales((sa.data as SellingSale[]) ?? []); setLoading(false);
@@ -1650,7 +1650,7 @@ function SellingStaffPanel({ auth, onLock, onBack, notify }: { auth: { phone: st
   const load = useCallback(async () => {
     setLoading(true);
     const [p, s] = await Promise.all([
-      supabase.from('selling_products').select('*').eq('active', true).order('name', { ascending: true }),
+      supabase.rpc('selling_list_products', { p_staff_passcode: auth.passcode, p_phone: auth.phone, p_active_only: true }),
       supabase.rpc('selling_staff_list_sales', { p_staff_passcode: auth.passcode, p_phone: auth.phone }),
     ]);
     setProducts((p.data as SellingProduct[]) ?? []); setMySales((s.data as SellingSale[]) ?? []); setLoading(false);
@@ -1907,19 +1907,19 @@ function NoticesDesk({ notify }: { notify: (m: string) => void }) {
   const [saving, setSaving] = useState(false);
   const load = useCallback(async () => {
     const [n, f] = await Promise.all([
-      supabase.from('notices').select('*').order('created_at', { ascending: false }),
-      supabase.from('freeze_requests').select('*').eq('status', 'PENDING').order('requested_at', { ascending: false }),
+      supabase.rpc('admin_notice_list', { p_passcode: adminPass() }),
+      supabase.rpc('admin_freeze_list_pending', { p_passcode: adminPass() }),
     ]);
     setNotices(n.data ?? []); setFreezes(f.data ?? []);
   }, []);
   useEffect(() => { void load(); }, [load]);
   const post = async (e: FormEvent) => {
     e.preventDefault(); if (!form.title.trim()) return; setSaving(true);
-    await supabase.from('notices').insert({ title: form.title, body: form.body, active: true });
+    await supabase.rpc('admin_notice_add', { p_passcode: adminPass(), p_title: form.title, p_body: form.body });
     setSaving(false); setForm({ title: '', body: '' }); notify('Notice posted to the Warrior app.'); void load();
   };
-  const toggle = async (n: { id: string; active: boolean }) => { await supabase.from('notices').update({ active: !n.active }).eq('id', n.id); void load(); };
-  const resolveFreeze = async (id: string, status: 'APPROVED' | 'DECLINED') => { await supabase.from('freeze_requests').update({ status, resolved_at: new Date().toISOString() }).eq('id', id); notify(`Freeze request ${status.toLowerCase()}.`); void load(); };
+  const toggle = async (n: { id: string; active: boolean }) => { await supabase.rpc('admin_notice_set_active', { p_passcode: adminPass(), p_id: n.id, p_active: !n.active }); void load(); };
+  const resolveFreeze = async (id: string, status: 'APPROVED' | 'DECLINED') => { await supabase.rpc('admin_freeze_resolve', { p_passcode: adminPass(), p_id: id, p_status: status }); notify(`Freeze request ${status.toLowerCase()}.`); void load(); };
   return <>
     <div className="page-head"><div><p className="eyebrow">Communication</p><h1 className="title">Notices & Freeze Requests</h1><p className="sub">Broadcast announcements to every member's app, and review pause requests.</p></div></div>
     <div className="grid layout-2">
@@ -2154,21 +2154,21 @@ function MemberVaultAccess({ members, passcode, notify }: { members: Member[]; p
   </>;
 }
 
-function ProgressPhotos({ memberId, notify }: { memberId: string; notify: (m: string) => void }) {
+function ProgressPhotos({ memberId, passcode, notify }: { memberId: string; passcode: string; notify: (m: string) => void }) {
   const [photos, setPhotos] = useState<{ id: string; photo_url: string; taken_at: string; note: string | null }[]>([]);
   const [uploading, setUploading] = useState(false);
-  const load = useCallback(async () => { const { data } = await supabase.from('progress_photos').select('*').eq('member_id', memberId).order('taken_at', { ascending: false }); setPhotos(data ?? []); }, [memberId]);
+  const load = useCallback(async () => { const { data } = await supabase.rpc('member_list_progress_photos', { p_member_id: memberId, p_passcode: passcode }); setPhotos(data ?? []); }, [memberId, passcode]);
   useEffect(() => { void load(); }, [load]);
   const handle = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return; setUploading(true);
     try {
       const url = await uploadCompressedPhoto('progress-photos', file);
-      await supabase.from('progress_photos').insert({ member_id: memberId, photo_url: url });
+      { const { error } = await supabase.rpc('member_add_progress_photo', { p_member_id: memberId, p_passcode: passcode, p_photo_url: url }); if (error) throw error; }
       notify('Progress photo added.'); void load();
     } catch { notify('Could not upload that photo.'); }
     setUploading(false); e.target.value = '';
   };
-  const remove = async (id: string) => { await supabase.from('progress_photos').delete().eq('id', id); void load(); };
+  const remove = async (id: string) => { await supabase.rpc('member_delete_progress_photo', { p_member_id: memberId, p_passcode: passcode, p_id: id }); void load(); };
   return <div className="card" style={{ marginTop: 20 }}>
     <div className="card-title">My progress photos <span>{photos.length} saved</span></div>
     <label className="button primary" style={{ cursor: 'pointer', width: 'fit-content', marginBottom: 14 }}><Smartphone size={15} /> {uploading ? 'Uploading...' : 'Add a progress photo'}<input type="file" accept="image/*" onChange={handle} style={{ display: 'none' }} /></label>
