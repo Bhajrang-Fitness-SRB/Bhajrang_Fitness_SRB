@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: bhajrang-fitness-website
+    runtime: static
+    # No build step: this is plain HTML/CSS/JS, so it deploys instantly and stays on Render's free static hosting.
+    buildCommand: echo "static site"
+    staticPublishPath: ./
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*.css
+        name: Cache-Control
+        value: public, max-age=3600
+      - path: /*.js
+        name: Cache-Control
+        value: public, max-age=3600
