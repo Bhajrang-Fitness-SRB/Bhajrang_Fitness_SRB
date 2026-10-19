@@ -9,7 +9,7 @@ const server = new EmbeddedPostgres({ databaseDir: dir, user: 'postgres', passwo
 await server.initialise(); await server.start(); await server.createDatabase('gym');
 const db = new pg.Client({ host: 'localhost', port: 54332, user: 'postgres', password: 'pw', database: 'gym' }); await db.connect();
 const q = (s, p) => db.query(s, p);
-const day = (n) => `(current_date + (${n}))::text`;
+const day = (n) => `((now() at time zone 'Asia/Kolkata')::date + (${n}))::text`;
 await q(`create role anon nologin; create role authenticated nologin;
  create table members (member_id text primary key, name text, phone text, whatsapp text, package text, expiry_date text, joining_date text);
  create table packages (name text, price int);
