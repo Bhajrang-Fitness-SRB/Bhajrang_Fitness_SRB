@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bhajrang Fitness — Forged in Bhajrang. Unleashed as Warriors.</title>
+  <meta name="description" content="Bhajrang Fitness — a gym built on strength, discipline and legacy. Join the RB Warriors: smart QR check-in, AI workout plans, hydration tracking and a member app that keeps you on the path." />
+  <meta name="theme-color" content="#080b12" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Bhajrang Fitness — RB Warriors" />
+  <meta property="og:description" content="Forged in Bhajrang. Unleashed as Warriors." />
+  <meta property="og:image" content="assets/splash.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" href="assets/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HealthClub",
+    "name": "Bhajrang Fitness",
+    "slogan": "Forged in Bhajrang. Unleashed as Warriors.",
+    "image": "assets/splash.jpg",
+    "logo": "assets/logo.png"
+  }
+  </script>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <canvas id="embers" aria-hidden="true"></canvas>
+  <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+  <!-- ============ NAV ============ -->
+  <header class="nav" id="nav">
+    <a class="nav__brand" href="#top" aria-label="Bhajrang Fitness home">
+      <img src="assets/logo.png" alt="Bhajrang Fitness" />
+    </a>
+    <nav class="nav__links" id="navLinks">
+      <a href="#about">About</a>
+      <a href="#founders">Founders</a>
+      <a href="#tech">Warrior Tech</a>
+      <a href="#path">The Path</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <a class="btn btn--sm btn--fire magnetic" data-app="/join">Join Now</a>
+    <button class="nav__burger" id="burger" aria-label="Open menu" aria-expanded="false"><span></span><span></span></button>
+  </header>
+
+  <main id="top">
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="hero__bg" style="background-image:url('assets/deity-bg.jpg')" data-parallax="0.25"></div>
+      <div class="hero__shade"></div>
+
+      <div class="hero__inner">
+        <div class="hero__logo-wrap" data-parallax="-0.08">
+          <div class="hero__halo"></div>
+          <img class="hero__logo" src="assets/logo.png" alt="Bhajrang Fitness logo" />
+        </div>
+
+        <p class="eyebrow reveal">RB WARRIORS · EST. IN FIRE</p>
+        <h1 class="hero__title">
+          <span class="line"><span class="word">Forged</span> <span class="word">in</span> <span class="word fire-text">Bhajrang.</span></span>
+          <span class="line"><span class="word">Unleashed</span> <span class="word">as</span> <span class="word gold-text">Warriors.</span></span>
+        </h1>
+        <p class="hero__sub reveal">Strength with discipline. Training with devotion. A gym where every member is treated as a warrior in the making.</p>
+
+        <div class="hero__cta reveal">
+          <a class="btn btn--fire magnetic" data-app="/join"><span>Become a Warrior</span></a>
+          <a class="btn btn--ghost magnetic" data-app="/warrior"><span>Member Login</span></a>
+        </div>
+      </div>
+
+      <a class="scroll-cue" href="#about" aria-label="Scroll down"><span></span></a>
+    </section>
+
+    <!-- ============ MARQUEE ============ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee__track">
+        <span>STRENGTH</span><i>✦</i><span>DISCIPLINE</span><i>✦</i><span>FIRE</span><i>✦</i><span>LEGACY</span><i>✦</i><span>WARRIOR</span><i>✦</i>
+        <span>STRENGTH</span><i>✦</i><span>DISCIPLINE</span><i>✦</i><span>FIRE</span><i>✦</i><span>LEGACY</span><i>✦</i><span>WARRIOR</span><i>✦</i>
+        <span>STRENGTH</span><i>✦</i><span>DISCIPLINE</span><i>✦</i><span>FIRE</span><i>✦</i><span>LEGACY</span><i>✦</i><span>WARRIOR</span><i>✦</i>
+      </div>
+    </div>
+
+    <!-- ============ ABOUT ============ -->
+    <section class="section about" id="about">
+      <div class="wrap about__grid">
+        <div class="about__art reveal-left">
+          <div class="tilt" data-tilt>
+            <img src="assets/deity-bg.jpg" alt="Shiva and Hanuman — symbols of strength and devotion" loading="lazy" />
+            <span class="tilt__shine"></span>
+          </div>
+        </div>
+        <div class="about__text">
+          <p class="eyebrow reveal">WHO WE ARE</p>
+          <h2 class="h2 reveal">Strength is a <span class="fire-text">devotion</span>, not a hobby.</h2>
+          <p class="lead reveal">Bhajrang Fitness is named for the one who never doubted his own strength. We carry that spirit into every rep: show up, push through, and walk out stronger than you walked in.</p>
+          <p class="reveal">This isn't a gym that counts members. It's a family of RB Warriors — beginners and veterans training side by side, guided by coaches who know your name, your goals and your limits.</p>
+          <ul class="ticks reveal">
+            <li>Personal attention, whatever your starting point</li>
+            <li>Structured plans instead of guesswork</li>
+            <li>A community that holds you accountable</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FOUNDERS ============ -->
+    <section class="section founders" id="founders">
+      <div class="wrap founders__grid">
+        <div class="founders__text">
+          <p class="eyebrow reveal">THE FOUNDERS</p>
+          <h2 class="h2 reveal">Rajib Biswas <span class="amp">&amp;</span><br/>Swarnamayee Mondal Biswas</h2>
+          <blockquote class="quote reveal">
+            “Fitness is not just a profession, it’s our passion, our promise, our legacy.”
+          </blockquote>
+          <p class="reveal">Two people, one promise: to build a gym where discipline is respected and every member is pushed to become the best version of themselves.</p>
+          <div class="badge-row reveal">
+            <img src="assets/team-badge.png" alt="RB Warriors badge" loading="lazy" />
+            <p><strong>RB Warriors</strong><br/>Forged in Bhajrang. Unleashed as Warriors.</p>
+          </div>
+        </div>
+        <div class="founders__art reveal-right">
+          <div class="tilt tilt--poster" data-tilt>
+            <img src="assets/splash.jpg" alt="Founders Rajib Biswas and Swarnamayee Mondal Biswas of Bhajrang Fitness" loading="lazy" />
+            <span class="tilt__shine"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TECH ============ -->
+    <section class="section tech" id="tech">
+      <div class="wrap">
+        <div class="section__head">
+          <p class="eyebrow reveal">WARRIOR TECH</p>
+          <h2 class="h2 reveal">A gym that runs on <span class="gold-text">smart systems</span>.</h2>
+          <p class="lead reveal">Less paperwork, more training. Every Bhajrang member gets their own digital toolkit.</p>
+        </div>
+
+        <div class="cards">
+          <article class="card reveal" data-tilt>
+            <div class="card__icon">📱</div>
+            <h3>Warrior Member App</h3>
+            <p>Log in with your Warrior ID to see membership status, attendance history and renewal options — straight from your phone.</p>
+            <span class="tilt__shine"></span>
+          </article>
+          <article class="card reveal" data-tilt>
+            <div class="card__icon">🔳</div>
+            <h3>QR Gate Pass</h3>
+            <p>Your personal QR code is your entry pass. Scan at the door and you’re in — no registers, no waiting.</p>
+            <span class="tilt__shine"></span>
+          </article>
+          <article class="card reveal" data-tilt>
+            <div class="card__icon">🎙️</div>
+            <h3>AI Kiosk Welcome</h3>
+            <p>The entrance kiosk greets you by name, wishes you a strong finish on the way out, and warns you before your package expires.</p>
+            <span class="tilt__shine"></span>
+          </article>
+          <article class="card reveal" data-tilt>
+            <div class="card__icon">🧠</div>
+            <h3>AI Workout Plans</h3>
+            <p>Training plans shaped around your body and your goals, so every session has a purpose.</p>
+            <span class="tilt__shine"></span>
+          </article>
+          <article class="card reveal" data-tilt>
+            <div class="card__icon">💧</div>
+            <h3>Hydration Tracker</h3>
+            <p>A daily water goal based on your body weight, split into easy half-hour slots with gentle reminders.</p>
+            <span class="tilt__shine"></span>
+          </article>
+          <article class="card reveal" data-tilt>
+            <div class="card__icon">🔔</div>
+            <h3>Renewal Reminders</h3>
+            <p>Never lose a training streak to a lapsed plan. Expiry alerts reach you before it happens.</p>
+            <span class="tilt__shine"></span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ STATS ============ -->
+    <section class="stats">
+      <div class="wrap stats__grid">
+        <div class="stat reveal"><b data-count="0.7" data-dec="1">0</b><small>litres</small><span>water goal per kg of body weight</span></div>
+        <div class="stat reveal"><b data-count="30">0</b><small>min</small><span>hydration slots through the day</span></div>
+        <div class="stat reveal"><b data-count="3">0</b><small>days</small><span>advance warning before expiry</span></div>
+        <div class="stat reveal"><b data-count="14">0</b><small>hours</small><span>of daily reminders, 8am to 10pm</span></div>
+      </div>
+    </section>
+
+    <!-- ============ THE PATH ============ -->
+    <section class="section path" id="path">
+      <div class="wrap">
+        <div class="section__head">
+          <p class="eyebrow reveal">THE PATH</p>
+          <h2 class="h2 reveal">Three steps to <span class="fire-text">become a warrior</span>.</h2>
+        </div>
+        <ol class="steps">
+          <li class="step reveal">
+            <span class="step__no">01</span>
+            <h3>Sign up online</h3>
+            <p>Fill in the short joining form with your details and health information. It takes a few minutes.</p>
+          </li>
+          <li class="step reveal">
+            <span class="step__no">02</span>
+            <h3>Get approved</h3>
+            <p>Our team reviews your form, confirms your plan and issues your Warrior ID.</p>
+          </li>
+          <li class="step reveal">
+            <span class="step__no">03</span>
+            <h3>Scan &amp; train</h3>
+            <p>Use your QR gate pass at the kiosk and start your journey. We handle the rest.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CTA ============ -->
+    <section class="cta">
+      <div class="cta__glow"></div>
+      <div class="wrap cta__inner">
+        <img class="cta__logo" src="assets/logo.png" alt="" loading="lazy" />
+        <h2 class="h2 reveal">Your fire is waiting.</h2>
+        <p class="lead reveal">The best time to start was yesterday. The second best is right now.</p>
+        <div class="hero__cta reveal">
+          <a class="btn btn--fire btn--lg magnetic" data-app="/join"><span>Join Bhajrang Fitness</span></a>
+          <a class="btn btn--whatsapp btn--lg magnetic" data-whatsapp hidden><span>Chat on WhatsApp</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer" id="contact">
+    <div class="wrap footer__grid">
+      <div class="footer__brand">
+        <img src="assets/logo.png" alt="Bhajrang Fitness" loading="lazy" />
+        <p>Forged in Bhajrang.<br/>Unleashed as Warriors.</p>
+      </div>
+
+      <div>
+        <h4>Explore</h4>
+        <a href="#about">About</a>
+        <a href="#founders">Founders</a>
+        <a href="#tech">Warrior Tech</a>
+        <a href="#path">The Path</a>
+      </div>
+
+      <div>
+        <h4>Members</h4>
+        <a data-app="/join">Join online</a>
+        <a data-app="/warrior">Warrior login</a>
+      </div>
+
+      <div id="contactBlock" hidden>
+        <h4>Find us</h4>
+        <p data-field="address" hidden></p>
+        <a data-field="phone" hidden></a>
+        <a data-field="whatsapp" hidden>WhatsApp us</a>
+        <a data-field="map" hidden target="_blank" rel="noopener">Open in Maps</a>
+        <div class="socials">
+          <a data-field="instagram" hidden target="_blank" rel="noopener">Instagram</a>
+          <a data-field="facebook" hidden target="_blank" rel="noopener">Facebook</a>
+          <a data-field="youtube" hidden target="_blank" rel="noopener">YouTube</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer__bar">
+      <span>© <span id="year"></span> Bhajrang Fitness · RB Warriors. All rights reserved.</span>
+    </div>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
