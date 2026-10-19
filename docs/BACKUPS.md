@@ -7,6 +7,7 @@ Saved: everything in the app's database (`public` schema): members, billing, att
 **Not saved:** uploaded files (progress photos, logos) in Supabase Storage; secrets (Hub API keys in Vault, function secrets); the owner passcode lives in the database so it IS saved. After a restore you re-enter the AI keys.
 
 ## One-time setup (10 minutes)
+0. **Move the schedule file into place.** GitHub does not let automated tokens create workflow files, so do it by hand: on GitHub open `setup/backup/nightly-backup.yml` → pencil (edit) → change the file name box to `.github/workflows/nightly-backup.yml` (type the full path) → Commit. Without this step nothing runs.
 1. **Make the repo private** (GitHub → repo → Settings → General → Danger Zone → Change visibility). Backups are encrypted, but your code and data files should not be public. Private repos get 2,000 free Actions minutes a month; this job uses about 2 minutes a night. Render can deploy private repos, so reconnect it if it asks.
 2. Supabase → **Connect** → choose **Session pooler** → copy the URI and put your database password in. Use the pooler, not "Direct": GitHub only speaks IPv4 and Direct is IPv6.
 3. Choose a **backup passphrase**, 20+ random characters (for example four unrelated words plus numbers). **Store it in a password manager and on paper.** If it is lost, every backup is unreadable. Nobody, including me, can recover it.

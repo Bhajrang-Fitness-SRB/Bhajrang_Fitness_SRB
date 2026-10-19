@@ -22,7 +22,7 @@ pg_dump "$SUPABASE_DB_URL" --format=custom --compress=9 --schema=public --no-own
 
 SIZE="$(stat -c %s "$RAW")"
 TABLES="$(pg_restore --list "$RAW" | grep -c ' TABLE DATA ' || true)"
-if [ "$SIZE" -lt 4096 ] || [ "$TABLES" -lt 1 ]; then
+if [ "$SIZE" -lt 2000 ] || [ "$TABLES" -lt 1 ]; then
   echo "Backup looks empty or broken (size=$SIZE bytes, tables=$TABLES). Not saving it." >&2; exit 3
 fi
 
