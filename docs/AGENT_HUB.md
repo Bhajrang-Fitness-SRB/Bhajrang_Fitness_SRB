@@ -1,40 +1,43 @@
-# AI Agent Hub (owner only)
+# Admin AI Agent Hub
 
-One control room, inside your Villain Vault, for every AI helper of the gym.
+Owner-only master control, inside the Villain Vault → **AI Agent Hub**. It is a separate module:
 
-* **AI providers with automatic fail-over.** Gemini, Groq, OpenRouter, Cerebras and Mistral (all have free plans). They are tried in the order you set. If one is out of free limit, busy, down or has a wrong key, it is paused for a while and the next one answers. You see which one answered.
-* **Agents.** Ready-made: Marketing & Ads, Follow-up, Business Analyst, Developer (planner). Add your own in the screen with no code.
-* **Approvals.** Agents only **write, analyse and suggest**. Their answers wait in an Approvals list.
+| Part | Where |
+|---|---|
+| Screen | `src/agent-hub/` (only one import + one tab line were added to `App.tsx`) |
+| Server | `supabase/functions/agent-hub/` (`router.ts` fail-over, `guard.ts` safety rules, `index.ts` actions) |
+| Database | `supabase/migrations/20261016000000_rbf_agent_hub.sql` (all tables `agent_hub_*`, closed to the browser) |
+| Tests | `tests/agent-hub/hub.test.ts` → `npx -y tsx --test tests/agent-hub/hub.test.ts` |
 
-## What "approve" means (please read)
-Approve / Decline / Done only **record your decision**. The hub does **not** edit your app, push code, post on social media or send messages. You copy the text and use it yourself. This is deliberate: it keeps a free AI from changing your gym system by mistake. The Developer agent writes a plan; a person (or a coding session with you) carries it out.
+## Safety switches (added on review, both OFF by default)
+The Hub is powerful: with approval it can run SQL on your live database and merge code on GitHub. So two switches ship **off**:
+| Secret (Supabase → Edge Functions → Secrets) | What it unlocks |
+|---|---|
+| `HUB_ALLOW_SQL=true` | Testing and applying SQL proposals (including undo). Off = the Hub cannot touch the database at all. |
+| `HUB_ALLOW_DEPLOY=true` | The Deploy button (merges the GitHub pull request, Render redeploys). Off = you merge the PR on GitHub yourself. |
+Drafts, chat, member messages, social posts, settings and opening pull requests work without either switch. Turn a switch on only when you want it, and remove the secret to turn it off again.
+**Always read a SQL or code proposal yourself before pressing approve.** The built-in checks are a keyword filter, not a guarantee.
 
-## Setup (about 15 minutes)
-1. **Run the SQL.** Supabase → SQL Editor → paste `supabase/migrations/20261019000000_rbf_agent_hub.sql` → Run. (Safe to run twice. The Social Sales Inbox is optional; if installed, the Analyst also sees chat counts.)
-2. **Get at least one free key** (more = more safety):
-   Gemini `aistudio.google.com` · Groq `console.groq.com` · OpenRouter `openrouter.ai` · Cerebras `cloud.cerebras.ai` · Mistral `console.mistral.ai`
-3. **Save each key as a secret**: Supabase → Edge Functions → Secrets: `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, `MISTRAL_API_KEY` (only the ones you have). Keys are never put in the browser or database. The screen only shows "key added / not added".
-4. **Deploy the function:** `supabase functions deploy ai-hub --no-verify-jwt` (copy `supabase/functions/` into your project first; `_shared/hub.ts` and `_shared/hubcall.ts` are needed).
-5. **Add the screen to the app.** Copy `src/components/AgentHub.tsx` to your app's `src/components/`. If you already added the Social Sales Inbox, apply the patches **in this order**:
-   `patch -p1 < social-agent/setup/app-wiring.patch` then `patch -p1 < setup/app-wiring-hub.patch`
-   (If you did not install the inbox, add the 4 small lines by hand: import, `'hub'` in the tab type, the nav entry `['hub','AI Agent Hub',Bot]`, and `{tab === 'hub' && <AgentHub passcode={passcode} notify={notify} />}`.)
-6. Open **AI Agent Hub → AI providers**, press **Test** on each provider.
+## Setup (once)
+1. Run the migration in the Supabase SQL editor.
+2. Deploy the function: `supabase functions deploy agent-hub` (keep JWT verification on, like your other functions). Also set `SUPABASE_DB_URL` only if you will turn on `HUB_ALLOW_SQL` (Supabase provides it to functions automatically).
+   If you ever ran the earlier simple hub's SQL (`ai-hub`, tables `hub_*`), run this migration after it: they share two function names and this one must win.
+3. Open Villain Vault → AI Agent Hub → **AI Pool** → add one or more free AI keys → **Test**.
+4. (Optional) **Connections** → GitHub (so Developer/Website agents can change code) and Facebook/Instagram.
 
-## Safety built in
-* Owner passcode only (checked on the server). Staff and wrong passcodes are refused.
-* All hub tables are private; the screen talks only through owner-checked functions.
-* Agents never see member names, phone numbers or money. The Analyst gets **counts only** (e.g. "7 members expiring in 7 days").
-* Every agent gets the same rules: no supplement doses, no medical advice, no guarantees, no invented offers; text inside your request is treated as material, not as commands.
-* Answers containing doses or guarantees are flagged with a warning before you use them.
-* 120 runs per hour cap; request limited to 6000 characters.
+## How it works
+- **Free AI pool.** Keys sit in Supabase Vault. Requests go to the top AI first; on quota/rate limit it rests (minutes for per-minute limits, ~6 h for daily limits) and the next one answers. A rejected key is switched off until you replace it. Retired model names are re-discovered automatically.
+- **Agents.** Built-in: Master Control (delegates), Developer, Money & Growth, Marketing & Social, Follow-up, Events, Website. Add more from the Agents tab (templates for Support, HR, Store, Reviews, or blank). A new agent shows up in Command immediately and Master can hand work to it.
+- **Approval gate.** Agents cannot change anything. They create *proposals* (draft, member message, social post, setting, SQL, code). You press the button on a card. Approval is enforced on the server, not just in the screen.
+- **Code changes** become a GitHub pull request; only **Deploy** merges it (Render then redeploys). To undo, press Revert on the merged PR.
+- **SQL changes** can be tested first (run in a transaction and rolled back), run in one transaction, and an undo can be prepared (as a new proposal you also approve). Destructive SQL needs a tick-box confirmation. Applied SQL is also saved as a migration file in your repo when GitHub is connected.
+- **Informing you:** every proposal and action is logged (Activity tab), and a Telegram alert is sent when one is waiting (if your Telegram alerts work).
 
-## Honest limits
-* Free plans change. Model names and daily limits were **not verified for today**; the hub asks each provider which models exist and picks a suitable one, and you can type a model name per provider. Use **Test** after adding a key.
-* When all providers are out of free quota you will see a clear message; try again later.
-* The WhatsApp/Facebook/Instagram sales agent still uses its own Gemini → Groq fail-over. It can be switched to this hub's longer list later.
-* Free AI can be wrong. Read before you use or approve anything.
+## Deliberate limits (safety)
+- Agents can never edit the Hub itself (`src/agent-hub/`, `supabase/functions/agent-hub/`, `agent_hub_*` tables), env files, `package.json`, build/deploy config, the vault, auth, RLS policies, roles, owner passcode objects, or GRANTs other than `GRANT EXECUTE ON FUNCTION`.
+- Edge-function files changed through a PR are saved to GitHub only; redeploy them in Supabase.
+- WhatsApp: opens ready-made `wa.me` chat links (one tap per member); email/push/Telegram use your existing `send-email`, `send-push`, `notify-telegram` functions.
+- Agents see anonymous counters and aggregate money figures, never names, phone numbers or photos. Member lists for messages are resolved by the server from the audience you approve.
 
-## Tests (included)
-* `node --test tests/hub.test.mjs`: fail-over logic (10 tests)
-* `node --import ./tests/smoke/register.mjs --test tests/smoke/hub.test.mjs`: the real function against a fake database and mocked providers (9 tests: owner only, quota fail-over, cool-down, rate cap, snapshot, warnings)
-* `tests/sql.test.mjs`: real Postgres check of the migration (needs `embedded-postgres` and `pg`)
+## Not verified against live services
+Tested here: fail-over/guards (unit tests), migration (real Postgres engine), UI (headless browser, mocked backend), strict TypeScript build. **Not** run against your live Supabase, GitHub, Meta or the AI providers. Provider base URLs/limits are presets you can edit. Try each connection with the Test / Check buttons first.
