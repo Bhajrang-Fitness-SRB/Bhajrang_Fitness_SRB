@@ -3,3 +3,7 @@ dist
 .env
 *.local
 .DS_Store
+
+# Your single key file (never commit it)
+keys.env
+*.keys.env

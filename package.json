@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
-    "test": "node --test tests/agent-hub/hub.test.mjs && node --import ./tests/agent-hub/smoke/register.mjs --test tests/agent-hub/smoke/hub.test.mjs"
+    "test": "npx -y tsx --test tests/agent-hub/hub.test.ts && node --test tests/social-agent/social.test.mjs && node --import ./tests/social-agent/smoke/register.mjs --test tests/social-agent/smoke/flow.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
