@@ -31,7 +31,7 @@ const toCsv = (rows: Record<string, unknown>[]) => { if (!rows.length) return ''
 const downloadCsv = (name: string, rows: Record<string, unknown>[]) => { const csv = toCsv(rows); if (!csv) return; const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
 
 function usePath(): [Path, (p: Path) => void] {
-  const normalize = (p: string): Path => (p === '/administration' ? '/' : ['/warrior', '/kiosk', '/villain', '/join', '/selling', '/install'].includes(p) ? (p as Path) : '/');
+  const normalize = (raw: string): Path => { const p = raw.replace(/\/+$/, '') || '/'; return p === '/administration' ? '/' : ['/warrior', '/kiosk', '/villain', '/join', '/selling', '/install'].includes(p) ? (p as Path) : '/'; };
   const [path, setPath] = useState<Path>(() => normalize(window.location.pathname));
   useEffect(() => { const onPop = () => setPath(normalize(window.location.pathname)); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop); }, []);
   useEffect(() => { if (window.location.pathname === '/administration') window.history.replaceState({}, '', '/'); }, []);
