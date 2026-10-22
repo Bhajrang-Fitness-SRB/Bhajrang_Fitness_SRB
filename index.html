@@ -7,10 +7,22 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/brand/icon-192.png" type="image/png" />
-    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
     <title>Bhajrang Fitness — RB Warriors</title>
+    <script>
+      // Each page is its own installable app (Staff "/", Owner "/villain", Members "/warrior", Kiosk "/kiosk").
+      // Phones read the app identity the moment you tap "Add to Home Screen", so it must be set HERE, before the app loads.
+      (function () {
+        var p = location.pathname.replace(/\/+$/, '') || '/';
+        var role = p === '/warrior' ? 'warrior' : p === '/kiosk' ? 'kiosk' : p === '/villain' ? 'admin' : 'staff';
+        var titles = { warrior: 'Warrior', kiosk: 'Kiosk', admin: 'Admin', staff: 'Staff' };
+        function add(tag, attrs) { var el = document.createElement(tag); for (var k in attrs) el.setAttribute(k, attrs[k]); document.head.appendChild(el); }
+        add('link', { rel: 'manifest', href: '/manifest-' + role + '.webmanifest' });
+        add('link', { rel: 'apple-touch-icon', href: '/brand/apple-touch-' + role + '.png' });
+        add('meta', { name: 'apple-mobile-web-app-title', content: titles[role] });
+        document.title = 'Bhajrang ' + titles[role];
+      })();
+    </script>
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
