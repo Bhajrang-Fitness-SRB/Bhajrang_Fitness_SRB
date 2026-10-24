@@ -1,0 +1,42 @@
+import EmbeddedPostgres from 'embedded-postgres';
+import pg from 'pg';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const dir = '/var/lib/postgresql/gymtest4'; fs.rmSync(dir, { recursive: true, force: true });
+const server = new EmbeddedPostgres({ databaseDir: dir, user: 'postgres', password: 'pw', port: 54332, persistent: false });
+await server.initialise(); await server.start(); await server.createDatabase('gym');
+const db = new pg.Client({ host: 'localhost', port: 54332, user: 'postgres', password: 'pw', database: 'gym' }); await db.connect();
+const q = (s, p) => db.query(s, p);
+const asRole = async (role, fn) => { await q(`set role ${role}`); try { return await fn(); } finally { await q('reset role'); } };
+const denied = async (fn, re = /permission denied|Only the owner/) => { try { await fn(); } catch (e) { assert.match(String(e.message), re, e.message); return; } assert.fail('expected denial'); };
+await q(`create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
+ grant usage on schema public to anon, authenticated, service_role;
+ create table members (member_id text primary key, expiry_date text); create table staff (id serial primary key, passcode text, active boolean default true);
+ create function verify_admin_access(p text) returns jsonb language plpgsql security definer set search_path=public as $$ begin if p is null or trim(p)='' then return null; end if; if exists(select 1 from staff where passcode=trim(p) and active) then return jsonb_build_object('role','staff'); end if; if p='295592' then return jsonb_build_object('role','owner'); end if; return null; end $$;
+ grant execute on function verify_admin_access(text) to anon; insert into staff (passcode) values ('1111');`);
+const M = new URL('../supabase/migrations/', import.meta.url).pathname;
+await q(fs.readFileSync(M + '20261019000000_rbf_agent_hub.sql', 'utf8'));
+const mig = fs.readFileSync(M + '20261023000000_rbf_astro_master.sql', 'utf8'); await q(mig); await q(mig);
+const O = '295592';
+const call = (n, ...a) => asRole('anon', async () => (await q(`select public.${n}(${a.map((_, i) => '$' + (i + 1)).join(',')}) r`, a)).rows[0].r);
+for (const t of ['astro_profiles', 'astro_readings']) for (const r of ['anon', 'authenticated']) await asRole(r, () => denied(() => q(`select * from ${t}`)));
+for (const bad of ['', 'nope', '1111', null]) {
+  await denied(() => call('admin_astro_overview', bad)); await denied(() => call('admin_astro_save_profile', bad, null, 'X', { a: 1 }, false));
+  await denied(() => call('admin_astro_save_reading', bad, null, 'daily', 't', 'b')); await denied(() => call('admin_astro_delete_profile', bad, '00000000-0000-0000-0000-000000000000'));
+}
+const agent = (await q(`select * from hub_agents where key='astro-master'`)).rows[0]; assert.ok(agent.builtin && agent.system_prompt.includes('HARD LIMITS') && !agent.use_snapshot);
+const id1 = await call('admin_astro_save_profile', O, null, 'Owner', { date: '1990-08-15', time: '10:00', tzHours: 5.5, lat: 22.57, lon: 88.36 }, true);
+const id2 = await call('admin_astro_save_profile', O, null, 'Wife', { date: '1992-01-02', time: '06:30', tzHours: 5.5, lat: 22.57, lon: 88.36 }, true);   // takes over "self"
+let ov = await call('admin_astro_overview', O); assert.equal(ov.profiles.length, 2); assert.equal(ov.profiles.filter((p) => p.is_self).length, 1); assert.equal(ov.profiles[0].name, 'Wife');
+await call('admin_astro_save_profile', O, id1, 'Owner (edited)', { date: '1990-08-15', time: '10:05', tzHours: 5.5, lat: 22.57, lon: 88.36 }, false);
+assert.equal((await q(`select name, data->>'time' t from astro_profiles where id=$1`, [id1])).rows[0].t, '10:05');
+await asRole('anon', () => assert.rejects(() => q(`select public.admin_astro_save_profile($1,null,'',$2,false)`, [O, '{}']), /enter a name/));
+await asRole('anon', () => assert.rejects(() => q(`select public.admin_astro_save_profile($1,null,'X',$2,false)`, [O, JSON.stringify({ x: 'a'.repeat(2100) })]), /not valid/));
+await asRole('anon', () => assert.rejects(() => q(`select public.admin_astro_save_profile($1,null,'X','[1]'::jsonb,false)`, [O]), /not valid/));
+await asRole('anon', () => assert.rejects(() => q(`select public.admin_astro_save_reading($1,$2,'hack','t','b')`, [O, id1]), /astro_readings_kind_check/));
+const r1 = await call('admin_astro_save_reading', O, id1, 'daily', '', 'Today: focus on renewals.'); assert.ok(r1);
+ov = await call('admin_astro_overview', O); assert.equal(ov.readings[0].title, 'Reading');
+assert.equal(await call('admin_astro_delete_reading', O, r1), true);
+await call('admin_astro_save_reading', O, id1, 'monthly', 'Nov', 'text'); assert.equal(await call('admin_astro_delete_profile', O, id1), true);
+assert.equal((await q(`select count(*)::int c from astro_readings`)).rows[0].c, 0, 'readings go with the profile');
+await db.end(); await server.stop(); console.log('ASTRO SQL CHECKS PASSED');
