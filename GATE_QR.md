@@ -24,3 +24,6 @@ GPS can also be faked with special apps, which is why the rotating QR is the str
 * The camera and location both need the https website address (yours is).
 * On iPhones the camera app opens the link in Safari, so the member signs in there.
 * Tests: `tests/gate/sql.test.mjs` (real Postgres, needs `embedded-postgres` and `pg`) and `tests/gate/qr.test.ts`.
+
+## Kiosk
+The same rotating QR can be shown on `/kiosk` next to the scanner. See `docs/KIOSK.md`.
