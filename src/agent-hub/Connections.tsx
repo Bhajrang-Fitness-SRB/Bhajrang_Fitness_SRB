@@ -32,7 +32,7 @@ export function Connections({ settings, secrets, passcode, notify, onChanged }: 
       <div className="card-title"><span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>GitHub — lets the Developer and Website agents change the app</span><span>{secrets.hub_github_token && settings.github_repo ? '● connected' : 'not connected'}</span></div>
       <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Changes are never written straight to your live site. An approved change becomes a pull request; it only goes live (and Render redeploys) when you press <b>Deploy</b>. Create a <i>fine-grained token</i> limited to this one repository with <b>Contents</b> and <b>Pull requests</b> set to Read &amp; write.</p>
       <div className="form-grid">
-        <div className="field"><label>Repository (owner/name)</label><input value={repo} onChange={e => setRepo(e.target.value)} placeholder="yourname/bhajrang-fitness" /></div>
+        <div className="field"><label>Repository (owner/name)</label><input value={repo} onChange={e => setRepo(e.target.value)} placeholder="yourname/your-repo" /></div>
         <div className="field"><label>Live branch</label><input value={branch} onChange={e => setBranch(e.target.value)} /></div>
         <div className="full"><SecretField label="GitHub token" name="hub_github_token" saved={!!secrets.hub_github_token} {...common} /></div>
       </div>

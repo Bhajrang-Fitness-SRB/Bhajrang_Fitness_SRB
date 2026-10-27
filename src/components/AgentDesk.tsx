@@ -56,7 +56,7 @@ function ConnectionsCheck({ passcode, notify }: { passcode: string; notify: (m: 
     if (kind === 'whatsapp') res = await supabase.functions.invoke('send-whatsapp', { body: { passcode, kind: 'test', to: m!.whatsapp || m!.phone } });
     else if (kind === 'email') res = await supabase.functions.invoke('send-email', { body: { passcode, to: m!.email, toName: m!.name, subject: 'Bhajrang Fitness — test email', text: `Hi ${m!.name},\n\nThis is a test email from your gym system. If you can read this, email is working.\n\nTeam Bhajrang Fitness` } });
     else if (kind === 'push') res = await supabase.functions.invoke('send-push', { body: { passcode, member_id: m!.member_id, title: 'Bhajrang Fitness', message: 'Test notification — push is working 💪' } });
-    else if (kind === 'telegram') res = await supabase.functions.invoke('notify-telegram', { body: { passcode, message: '✅ Bhajrang Fitness test: Telegram alerts are working.' } });
+    else if (kind === 'telegram') res = await supabase.functions.invoke('notify-telegram', { body: { passcode, message: '✅ Gym app test: Telegram alerts are working.' } });
     else res = await supabase.functions.invoke('ai-coach', { body: { passcode, prompt: 'Reply with the single word OK.' } });
     setResults(r => ({ ...r, [kind]: describe(res.data as Record<string, unknown> | null, res.error) }));
     setBusy('');

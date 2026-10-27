@@ -1,8 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL as string;
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-export const supabase = createClient(url, key);
+// Settings come from /config.js (edited after install, no rebuild needed) or, for developers, from VITE_* variables.
+const runtime = ((globalThis as unknown as { RBF_CONFIG?: { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string } }).RBF_CONFIG) || {};
+const url = runtime.SUPABASE_URL || (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
+const key = runtime.SUPABASE_ANON_KEY || (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
+/** False on a fresh install until the two VITE_SUPABASE_* values are set (the app then shows a setup screen). */
+export const isConfigured = /^https?:\/\//.test(url) && key.length > 20;
+export const supabase = createClient(isConfigured ? url : 'http://localhost:54321', isConfigured ? key : 'not-configured-yet');
 
 export type Member = {
   member_id: string;

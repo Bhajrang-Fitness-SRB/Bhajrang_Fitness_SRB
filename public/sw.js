@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bhajrang-fitness-v3';
+const CACHE_NAME = 'gym-app-v5';
 const APP_SHELL = ['/manifest.webmanifest', '/brand/icon-192.png', '/brand/icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -30,11 +30,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Hashed build files (/assets/*) never change once published: serve from cache instantly.
+  if (new URL(event.request.url).pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+        if (response.ok) { const copy = response.clone(); caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)); }
+        return response;
+      }))
+    );
+    return;
+  }
+
+  // Everything else (manifests, icons, sw.js): fresh from the network, cached copy only when offline.
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+    fetch(event.request).then((response) => {
+      if (response.ok) { const copy = response.clone(); caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)); }
       return response;
-    }))
+    }).catch(() => caches.match(event.request))
   );
 });
