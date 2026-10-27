@@ -51,7 +51,8 @@ create table if not exists public.billing (
   package_name text, amount integer, discount integer, paid integer, due integer,
   payment_date date, expiry_date text,
   payment_method text not null default 'UPI',
-  start_date date, kind text, payment_status text
+  start_date date, kind text,
+  payment_status text generated always as (case when coalesce(due,0) = 0 then 'Done' else 'Due' end) stored
 );
 create index if not exists idx_billing_member on public.billing (member_id);
 create index if not exists billing_open_due_idx on public.billing (member_id) where due > 0;
