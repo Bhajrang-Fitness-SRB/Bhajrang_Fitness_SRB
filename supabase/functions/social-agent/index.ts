@@ -108,7 +108,7 @@ async function handle(sb: SupabaseClient, m: Inbound): Promise<void> {
     : { data: null };
 
   const system = buildSystemPrompt({
-    nowIst: istNow(), channel: m.channel, lang, appUrl: env('APP_URL') || 'https://bhajrang-fitness-srb.onrender.com',
+    nowIst: istNow(), channel: m.channel, lang, appUrl: env('APP_URL') || '',
     packages: (pk.data ?? []) as never, products: (inv.data ?? []) as never,
     knowledge: ((kn.data ?? []) as Array<{ key: string; title: string; content: string }>).filter((k) => !['default_language', 'auto_send_followups'].includes(k.key)),
     member: memberRow ? { name: memberRow.name, package: memberRow.package, expiry_date: memberRow.expiry_date, days_left: daysLeftFrom(memberRow.expiry_date), goal: memberRow.goal ?? '' } : null,

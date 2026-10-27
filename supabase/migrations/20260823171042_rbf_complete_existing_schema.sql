@@ -133,4 +133,4 @@ CREATE INDEX IF NOT EXISTS idx_members_phone ON public.members(phone);
 CREATE INDEX IF NOT EXISTS idx_attendance_member ON public.attendance_logs(member_id);
 CREATE INDEX IF NOT EXISTS idx_billing_member ON public.billing(member_id);
 
-GRANT EXECUTE ON FUNCTION public.approve_member(integer, text, integer, integer, integer, integer) TO anon, authenticated;
+-- (removed: the old ungated approve_member overload no longer exists; see 20260913030000)

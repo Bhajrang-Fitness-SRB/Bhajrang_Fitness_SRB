@@ -16,6 +16,7 @@
 
 ALTER TABLE public.members ADD COLUMN IF NOT EXISTS first_login_passcode_set boolean DEFAULT false;
 
+DROP FUNCTION IF EXISTS public.member_set_first_passcode(text, text);
 CREATE OR REPLACE FUNCTION public.member_set_first_passcode(
   p_member_id text,
   p_new_passcode text
@@ -60,6 +61,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.member_set_first_passcode(text, text) TO anon, authenticated;
 
 -- Update verify_member_login to also return first_login_passcode_set flag
+DROP FUNCTION IF EXISTS public.verify_member_login(text, text);
 CREATE OR REPLACE FUNCTION public.verify_member_login(p_member_id text, p_passcode text)
 RETURNS TABLE (
   member_id text,

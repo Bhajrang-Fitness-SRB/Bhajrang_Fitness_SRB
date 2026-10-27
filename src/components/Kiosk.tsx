@@ -1,6 +1,7 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
-import { ArrowLeft, Radio, X, Zap } from 'lucide-react';
+import QRCode from 'qrcode';
+import { ArrowLeft, Camera, KeyRound, QrCode, ScanFace, Smartphone, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getDescriptor, loadFaceApi, matchDescriptor, type FaceCandidate } from '../lib/faceApi';
 
@@ -11,6 +12,9 @@ const GOODBYE_LINES = [
   "That's how champions train, {name}. Goodbye for now!",
   'Solid effort, {name}. See you soon!',
 ];
+const MANUAL_IDLE_MS = 45000; // the manual form clears itself and returns to the QR after 45 s of nobody touching it
+const RESUME_MS = 3000; // scanner pauses this long after a scan so the same pass is not read twice
+const RESULT_MS = 10000; // how long the last result stays on screen
 
 function speak(text: string) {
   try {
@@ -28,21 +32,39 @@ function getDeviceId(): string {
 }
 
 type Mode = 'idle' | 'qr' | 'face';
+type Level = 'ok' | 'warn' | 'danger';
+type ScanResult = { found?: boolean; ok?: boolean; message?: string; member_id?: string; name?: string; profile_pic?: string | null; action?: string; expired?: boolean };
+type GateQr = { state: 'loading' } | { state: 'ready'; img: string; radiusFt: number } | { state: 'not_set_up' } | { state: 'unavailable' };
+
+function Seg<T extends string>({ value, onChange, items }: { value: T; onChange: (v: T) => void; items: { key: T; label: string; icon: ReactNode }[] }) {
+  return <div className="kseg" role="tablist">
+    {items.map(i => <button key={i.key} type="button" role="tab" aria-selected={value === i.key} className={value === i.key ? 'on' : ''} onClick={() => onChange(i.key)}>{i.icon}{i.label}</button>)}
+  </div>;
+}
 
 /**
- * Kiosk with three ways in: typed Warrior ID, QR pass, and face scan.
- * Every check-in goes through kiosk_scan_device, so only staff-approved devices can punch members in or out.
+ * Kiosk with two screens side by side, so one desk-attached tablet / phone offers every way to give attendance:
+ *   LEFT  - the kiosk's own scanner:  QR pass  <->  Face scan
+ *   RIGHT - for members' phones:      Gym QR (changes every minute)  <->  type Member ID / mobile + passcode
+ * Every check-in goes through the database (kiosk_scan_device / kiosk_manual_checkin), so only staff-approved devices can punch members in or out.
  */
 export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: string) => void }) {
-  const [code, setCode] = useState('');
   const [message, setMessage] = useState('');
-  const [alertLevel, setAlertLevel] = useState<'ok' | 'warn' | 'danger'>('ok');
+  const [alertLevel, setAlertLevel] = useState<Level>('ok');
+  const [who, setWho] = useState<{ name: string; pic: string | null } | null>(null);
   const [logs, setLogs] = useState<{ id: string; name: string; action: string; time: string }[]>([]);
   const [mode, setMode] = useState<Mode>('idle');
+  const [scanKind, setScanKind] = useState<'qr' | 'face'>('qr');
+  const [rightView, setRightView] = useState<'qr' | 'manual'>('qr');
   const [camError, setCamError] = useState('');
   const [faceStatus, setFaceStatus] = useState('');
   const [approved, setApproved] = useState<boolean | null>(null);
   const [deviceId] = useState(getDeviceId);
+  const [gate, setGate] = useState<GateQr>({ state: 'loading' });
+  const [secs, setSecs] = useState(0);
+  const [ident, setIdent] = useState('');
+  const [pass, setPass] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,9 +72,13 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
   const timerRef = useRef<number | null>(null);
   const runRef = useRef(0); // bumped on every stop so stale loops exit
   const lockUntilRef = useRef(0);
+  const pauseUntilRef = useRef(0);
   const candidatesRef = useRef<FaceCandidate[]>([]);
   const candidatesAtRef = useRef(0);
   const approvedRef = useRef<boolean | null>(null);
+  const autoStarted = useRef(false);
+  const resultTimer = useRef<number | null>(null);
+  const idleTimer = useRef<number | null>(null);
   approvedRef.current = approved;
 
   // Register this device and keep checking until staff approve it.
@@ -73,6 +99,39 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
     return () => { alive = false; if (t) window.clearTimeout(t); };
   }, [deviceId]);
 
+  // Keep the screen awake while the kiosk is open (where the browser allows it).
+  useEffect(() => {
+    let off = false;
+    let lock: { release: () => Promise<void> } | null = null;
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } };
+    const ask = () => { void nav.wakeLock?.request('screen').then(l => { if (off) void l.release(); else lock = l; }).catch(() => undefined); };
+    ask();
+    const vis = () => { if (document.visibilityState === 'visible') ask(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => { off = true; document.removeEventListener('visibilitychange', vis); void lock?.release().catch(() => undefined); };
+  }, []);
+
+  // Gym QR for members' phones: ask for a fresh code every 25 s (it changes every minute).
+  useEffect(() => {
+    if (!approved) return;
+    let alive = true;
+    const load = async () => {
+      const { data, error } = await supabase.rpc('kiosk_gate_token', { p_device_id: deviceId });
+      if (!alive) return;
+      if (error || !data) { setGate({ state: 'unavailable' }); return; }
+      const d = data as { token: string; seconds_left: number; location_set: boolean; radius_ft: number };
+      if (!d.location_set) { setGate({ state: 'not_set_up' }); return; }
+      const img = await QRCode.toDataURL(`${window.location.origin}/warrior?g=${d.token}`, { margin: 2, width: 420, errorCorrectionLevel: 'M' });
+      if (!alive) return;
+      setGate({ state: 'ready', img, radiusFt: d.radius_ft });
+      setSecs(d.seconds_left);
+    };
+    void load();
+    const a = window.setInterval(() => void load(), 25000);
+    const b = window.setInterval(() => setSecs(s => Math.max(0, s - 1)), 1000);
+    return () => { alive = false; window.clearInterval(a); window.clearInterval(b); };
+  }, [approved, deviceId]);
+
   const stopAll = useCallback(() => {
     runRef.current += 1;
     if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null; }
@@ -82,49 +141,54 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
     setFaceStatus('');
   }, []);
 
-  useEffect(() => () => stopAll(), [stopAll]);
+  useEffect(() => () => {
+    stopAll();
+    if (resultTimer.current) window.clearTimeout(resultTimer.current);
+    if (idleTimer.current) window.clearTimeout(idleTimer.current);
+  }, [stopAll]);
 
-  const processId = useCallback(async (rawId: string) => {
-    const id = rawId.trim().toUpperCase();
-    if (!id) return false;
-    if (!approvedRef.current) {
-      setMessage('THIS DEVICE IS NOT APPROVED YET · ASK STAFF'); setAlertLevel('warn'); setCode('');
-      return false;
-    }
-    const { data, error } = await supabase.rpc('kiosk_scan_device', { p_device_id: deviceId, p_member_id: id });
-    if (error) {
-      const denied = /not approved/i.test(error.message);
-      setMessage(denied ? 'THIS DEVICE IS NOT APPROVED YET · ASK STAFF' : 'SCANNER ERROR · TRY AGAIN');
-      setAlertLevel(denied ? 'warn' : 'danger');
-      if (denied) setApproved(false);
-      setCode('');
-      return false;
-    }
-    if (!data || !data.found) {
-      setMessage('ACCESS DENIED · ID NOT FOUND'); setAlertLevel('danger'); notify('Warrior ID not found.'); setCode('');
-      return false;
-    }
-    const name: string = data.name || data.member_id;
+  // ---- result banner ----
+  const show = useCallback((text: string, level: Level, person: { name: string; pic: string | null } | null = null) => {
+    setMessage(text); setAlertLevel(level); setWho(person);
+    if (resultTimer.current) window.clearTimeout(resultTimer.current);
+    resultTimer.current = window.setTimeout(() => { setMessage(''); setWho(null); }, RESULT_MS);
+  }, []);
+
+  /** Shared by QR, face and manual entry: turns the database answer into the banner, voice and log. */
+  const applyResult = useCallback((data: ScanResult): boolean => {
+    if (!data.found) { show('ACCESS DENIED · ID NOT FOUND', 'danger'); notify('Warrior ID not found.'); return false; }
+    const name: string = data.name || data.member_id || 'Member';
     const action = data.action as string;
     const isExpired = !!data.expired;
-
-    if (action === 'ALREADY-SCANNED') {
-      setAlertLevel('warn'); setMessage(`ALREADY SCANNED · ${name}`); setCode('');
-      return true;
-    }
+    const pic = data.profile_pic && /^(https?:|data:image)/.test(data.profile_pic) ? data.profile_pic : null;
+    if (action === 'ALREADY-SCANNED') { show(`ALREADY SCANNED · ${name}`, 'warn', { name, pic }); return true; }
     if (action === 'CHECK-IN') {
       speak(`Welcome to Bhajrang Fitness, ${name}`);
       if (isExpired) setTimeout(() => speak(`Attention. ${name}, your package has expired. Please renew at reception.`), 1600);
     } else {
       speak(GOODBYE_LINES[Math.floor(Math.random() * GOODBYE_LINES.length)].replace('{name}', name));
     }
-    setAlertLevel(isExpired ? 'danger' : 'ok');
-    setMessage(isExpired ? `${action} · ${name} · PACKAGE EXPIRED` : `${action} · ${name}`);
-    setLogs(x => [{ id: data.member_id, name, action, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...x].slice(0, 6));
-    setCode('');
+    show(isExpired ? `${action} · ${name} · PACKAGE EXPIRED — PLEASE RENEW` : `${action} · ${name}`, isExpired ? 'danger' : 'ok', { name, pic });
+    setLogs(x => [{ id: data.member_id ?? name, name, action, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...x].slice(0, 6));
     return true;
-  }, [deviceId, notify]);
+  }, [notify, show]);
 
+  const notApproved = useCallback(() => { show('THIS DEVICE IS NOT APPROVED YET · ASK STAFF', 'warn'); setApproved(false); }, [show]);
+
+  // QR pass / face scan: the member is identified by the pass or the face.
+  const processId = useCallback(async (rawId: string) => {
+    const id = rawId.trim().toUpperCase();
+    if (!id) return false;
+    if (!approvedRef.current) { show('THIS DEVICE IS NOT APPROVED YET · ASK STAFF', 'warn'); return false; }
+    const { data, error } = await supabase.rpc('kiosk_scan_device', { p_device_id: deviceId, p_member_id: id });
+    if (error) {
+      if (/not approved/i.test(error.message)) notApproved(); else show('SCANNER ERROR · TRY AGAIN', 'danger');
+      return false;
+    }
+    return applyResult((data ?? { found: false }) as ScanResult);
+  }, [deviceId, applyResult, notApproved, show]);
+
+  // ---- LEFT: the kiosk camera ----
   const openCamera = async (facing: 'environment' | 'user') => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
     streamRef.current = stream;
@@ -134,9 +198,8 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
     await v.play();
   };
 
-  // ===== QR =====
-  const startQr = async () => {
-    stopAll(); setCamError('');
+  const startQr = useCallback(async () => {
+    stopAll(); setCamError(''); setScanKind('qr');
     const run = runRef.current;
     try {
       await openCamera('environment');
@@ -145,7 +208,7 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
       const loop = (t: number) => {
         if (runRef.current !== run) return;
         requestAnimationFrame(loop);
-        if (t - last < 220) return;
+        if (t - last < 220 || Date.now() < pauseUntilRef.current) return;
         last = t;
         const v = videoRef.current, c = canvasRef.current;
         if (!v || !c || v.readyState !== v.HAVE_ENOUGH_DATA) return;
@@ -154,15 +217,17 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
         ctx.drawImage(v, 0, 0, c.width, c.height);
         const img = ctx.getImageData(0, 0, c.width, c.height);
         const res = jsQR(img.data, img.width, img.height);
-        if (res?.data) { stopAll(); void processId(res.data); }
+        if (!res?.data) return;
+        pauseUntilRef.current = Date.now() + RESUME_MS; // keep scanning afterwards, but never read the same pass twice in a row
+        if (/^https?:\/\//i.test(res.data)) { show('That is the gym QR — scan it with your phone, or show your own pass here.', 'warn'); return; }
+        void processId(res.data);
       };
       requestAnimationFrame(loop);
     } catch {
-      stopAll(); setCamError('Camera unavailable — check permissions (HTTPS required), or type the Warrior ID below.');
+      stopAll(); setCamError('Camera unavailable — check permissions (HTTPS required), or use the phone QR / ID entry on the right.');
     }
-  };
+  }, [stopAll, processId, show]);
 
-  // ===== FACE =====
   const refreshCandidates = async () => {
     const { data, error } = await supabase.rpc('kiosk_list_face_descriptors', { p_device_id: deviceId });
     if (error) throw new Error(error.message);
@@ -170,9 +235,9 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
     candidatesAtRef.current = Date.now();
   };
 
-  const startFace = async () => {
+  const startFace = useCallback(async () => {
     if (!approvedRef.current) { setCamError('This device is not approved yet — ask staff to approve it.'); return; }
-    stopAll(); setCamError(''); setFaceStatus('Loading face models…');
+    stopAll(); setCamError(''); setScanKind('face'); setFaceStatus('Loading face models…');
     const run = runRef.current;
     try {
       await loadFaceApi();
@@ -195,7 +260,7 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
             if (!desc) { streakId = ''; streak = 0; }
             else {
               const m = matchDescriptor(desc, candidatesRef.current);
-              if (!m) { streakId = ''; streak = 0; setFaceStatus('Face not recognised — try the QR or Warrior ID'); }
+              if (!m) { streakId = ''; streak = 0; setFaceStatus('Face not recognised — try the QR or your ID and passcode'); }
               else {
                 streak = m.memberId === streakId ? streak + 1 : 1; streakId = m.memberId;
                 setFaceStatus(`Verifying… ${m.name ?? m.memberId}`);
@@ -217,39 +282,123 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
         ? e.message
         : 'Face camera unavailable — check permissions (HTTPS required), or use another method.');
     }
+  }, [stopAll, processId]);
+
+  // A kiosk should simply work when opened: start the QR scanner as soon as the device is approved.
+  useEffect(() => {
+    if (approved && !autoStarted.current) { autoStarted.current = true; void startQr(); }
+  }, [approved, startQr]);
+
+  const pickScanKind = (k: 'qr' | 'face') => { if (k === 'qr') void startQr(); else void startFace(); };
+
+  // ---- RIGHT: manual entry ----
+  const clearManual = useCallback(() => { setIdent(''); setPass(''); }, []);
+  const touchManual = useCallback(() => {
+    if (idleTimer.current) window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(() => { clearManual(); setRightView('qr'); }, MANUAL_IDLE_MS);
+  }, [clearManual]);
+  const pickRight = (v: 'qr' | 'manual') => {
+    setRightView(v); clearManual();
+    if (idleTimer.current) window.clearTimeout(idleTimer.current);
+    if (v === 'manual') touchManual();
   };
 
-  const submit = async (e: FormEvent) => { e.preventDefault(); await processId(code); };
-  const cameraOn = mode !== 'idle';
+  const submitManual = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!approvedRef.current) { show('THIS DEVICE IS NOT APPROVED YET · ASK STAFF', 'warn'); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc('kiosk_manual_checkin', { p_device_id: deviceId, p_identifier: ident, p_passcode: pass });
+    setBusy(false);
+    setPass('');
+    if (error) {
+      if (/not approved/i.test(error.message)) notApproved();
+      else show('ENTRY NOT AVAILABLE · ASK STAFF (the kiosk update may not be installed yet)', 'danger');
+      return;
+    }
+    const r = (data ?? {}) as ScanResult;
+    if (r.ok === false) { show((r.message ?? 'Not recorded.').toUpperCase(), 'danger'); touchManual(); return; }
+    if (applyResult(r)) { clearManual(); setRightView('qr'); if (idleTimer.current) window.clearTimeout(idleTimer.current); }
+  };
 
-  return <main className="kiosk"><div className="kiosk-inner">
-    <div className="kiosk-head"><div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-      <span className="status-dot"><i className="dot" /> {approved === null ? 'CONNECTING' : approved ? 'SCANNER READY' : 'AWAITING STAFF APPROVAL'}</span>
-      <button className="button ghost" onClick={() => { stopAll(); onBack(); }}><ArrowLeft size={15} /> Exit</button>
-    </div></div>
-    <div className="scan-box">
-      <p className="kicker">BHAJRANG AI KIOSK // GATE 01</p>
-      <h1 className="title">Scan to enter.</h1>
-      <p className="sub">Present your QR pass, use face scan, or type your Warrior ID.</p>
-      {approved === false && <p className="kiosk-warn" style={{ fontSize: 12, lineHeight: 1.6 }}>This device must be approved by staff before it can check members in. Device ID: <b>{deviceId.slice(0, 8)}</b></p>}
-      <div className="scan-frame" style={{ overflow: 'hidden', position: 'relative' }}>
-        <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraOn ? 'block' : 'none', transform: mode === 'face' ? 'scaleX(-1)' : undefined }} />
-        {!cameraOn && <><div className="scan-line" /><Radio size={48} strokeWidth={1} /></>}
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
+  const cameraOn = mode !== 'idle';
+  const statusText = approved === null ? 'CONNECTING' : approved ? 'KIOSK READY' : 'AWAITING STAFF APPROVAL';
+
+  return <main className="kiosk"><div className="kiosk-inner kwide">
+    <div className="kiosk-head">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        <span className="status-dot"><i className="dot" /> {statusText}</span>
+        <button className="button ghost" onClick={() => { stopAll(); onBack(); }}><ArrowLeft size={15} /> Exit</button>
       </div>
-      <button type="button" className="button ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 14 }} onClick={() => mode === 'qr' ? stopAll() : void startQr()}>
-        {mode === 'qr' ? <><X size={15} /> Stop camera</> : <><Zap size={15} /> Scan QR with camera</>}
-      </button>
-      <button type="button" className="button ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 14, borderColor: 'var(--cyan)', color: 'var(--cyan)' }} onClick={() => mode === 'face' ? stopAll() : void startFace()}>
-        {mode === 'face' ? <><X size={15} /> Stop face scan</> : <>Face scan</>}
-      </button>
-      {faceStatus && <p className="sub" style={{ fontSize: 12, marginTop: -4 }}>{faceStatus}</p>}
-      {camError && <p className="error" style={{ fontSize: 12, marginTop: -6, marginBottom: 14 }}>{camError}</p>}
-      <form onSubmit={submit}><input autoFocus className="kiosk-input" value={code} onChange={e => setCode(e.target.value)} placeholder="WARRIOR ID" /></form>
-      {message && <p className={alertLevel === 'danger' ? 'error' : alertLevel === 'warn' ? 'kiosk-warn' : 'success'} style={{ fontSize: 13, letterSpacing: '.08em', marginTop: 20 }}>{message}</p>}
-      <div className="log-list" style={{ textAlign: 'left' }}>
-        {logs.length > 0 && <p className="eyebrow" style={{ margin: '18px 0 0' }}>Live action log</p>}
-        {logs.map(x => <div className="log" key={x.id + x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}
-      </div>
-    </div></div></main>;
+      <p className="kicker" style={{ margin: 0 }}>BHAJRANG AI KIOSK // GATE 01</p>
+    </div>
+
+    {approved === false && <p className="kiosk-warn" style={{ fontSize: 13, lineHeight: 1.6, textAlign: 'center', margin: '0 0 18px' }}>This device must be approved by staff before it can check members in. Device ID: <b>{deviceId.slice(0, 8)}</b></p>}
+
+    <div className="kdual">
+      {/* ========== LEFT: scanner ========== */}
+      <section className="kpanel" aria-label="Kiosk scanner">
+        <p className="kicker">Scan here</p>
+        <h2 className="ktitle">Show your pass or face</h2>
+        <Seg value={scanKind} onChange={pickScanKind} items={[
+          { key: 'qr', label: 'QR pass', icon: <QrCode size={17} /> },
+          { key: 'face', label: 'Face scan', icon: <ScanFace size={17} /> },
+        ]} />
+        <div className="kframe">
+          <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraOn ? 'block' : 'none', transform: mode === 'face' ? 'scaleX(-1)' : undefined }} />
+          {!cameraOn && <div className="kframe-idle"><div className="kscan-line" /><Camera size={44} strokeWidth={1} /><span>Camera is off</span></div>}
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        </div>
+        <p className="ksub">{scanKind === 'qr' ? 'Hold the QR from your Warrior app up to the camera.' : 'Look straight at the camera. Face scan works only if you turned it on in your Warrior app.'}</p>
+        {faceStatus && <p className="ksub" style={{ color: 'var(--cyan)' }}>{faceStatus}</p>}
+        {camError && <p className="error" style={{ fontSize: 13, margin: '0 0 10px' }}>{camError}</p>}
+        <button type="button" className="button ghost kbtn" onClick={() => cameraOn ? stopAll() : pickScanKind(scanKind)} disabled={!approved && !cameraOn}>
+          {cameraOn ? <><X size={16} /> Stop camera</> : <><Camera size={16} /> Start camera</>}
+        </button>
+      </section>
+
+      {/* ========== RIGHT: phone QR / manual entry ========== */}
+      <section className="kpanel" aria-label="Phone check-in">
+        <p className="kicker">Use your phone</p>
+        <h2 className="ktitle">{rightView === 'qr' ? 'Scan this with your phone' : 'Type your ID and passcode'}</h2>
+        <Seg value={rightView} onChange={pickRight} items={[
+          { key: 'qr', label: 'Gym QR', icon: <Smartphone size={17} /> },
+          { key: 'manual', label: 'ID / Mobile + passcode', icon: <KeyRound size={17} /> },
+        ]} />
+
+        {rightView === 'qr' && <div className="kqr">
+          {approved === false && <div className="kqr-note">Waiting for staff to approve this device.</div>}
+          {approved && gate.state === 'loading' && <div className="kqr-note">Making the code…</div>}
+          {gate.state === 'not_set_up' && <div className="kqr-note">Phone QR is not set up yet. The owner must save the gym location in Admin → Gym QR.</div>}
+          {gate.state === 'unavailable' && <div className="kqr-note">Phone QR is not available yet. Ask the owner to run the kiosk update (SQL) step.</div>}
+          {gate.state === 'ready' && <>
+            <img src={gate.img} alt="Gym check-in QR code" className="kqr-img" />
+            <p className="ksub" style={{ margin: '12px 0 0' }}>Open your phone camera (or Warrior app → Scan gym QR) and point it here. Sign in, allow location, done. Your next scan checks you out.</p>
+            <p className="ksub" style={{ margin: '4px 0 0', fontSize: 12 }}>Changes in {secs}s · you must be within {gate.radiusFt} ft of the gym</p>
+          </>}
+        </div>}
+
+        {rightView === 'manual' && <form className="kform" onSubmit={e => void submitManual(e)} onInput={touchManual} autoComplete="off">
+          <label>Member ID or mobile number
+            <input className="kiosk-input" value={ident} onChange={e => setIdent(e.target.value)} placeholder="MEMBER ID / MOBILE" autoFocus autoCapitalize="characters" autoCorrect="off" spellCheck={false} inputMode="text" />
+          </label>
+          <label>Passcode
+            <input className="kiosk-input" type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••" inputMode="numeric" autoComplete="new-password" />
+          </label>
+          <button type="submit" className="button primary kbtn" disabled={busy || !ident.trim() || !pass.trim()}><KeyRound size={16} /> {busy ? 'Checking…' : 'Check in / out'}</button>
+          <p className="ksub" style={{ margin: 0, fontSize: 12 }}>10 wrong tries block that member for 10 minutes. This form clears itself if left alone.</p>
+        </form>}
+      </section>
+    </div>
+
+    {message && <div className={`kresult ${alertLevel}`} role="status" aria-live="polite">
+      {who?.pic && <img src={who.pic} alt="" />}
+      <span>{message}</span>
+    </div>}
+
+    {logs.length > 0 && <div className="log-list" style={{ textAlign: 'left', maxWidth: 560, margin: '24px auto 0' }}>
+      <p className="eyebrow" style={{ margin: '0' }}>Live action log</p>
+      {logs.map(x => <div className="log" key={x.id + x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}
+    </div>}
+  </div></main>;
 }

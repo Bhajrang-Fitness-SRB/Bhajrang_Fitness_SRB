@@ -7,3 +7,9 @@ dist
 # Your single key file (never commit it)
 keys.env
 *.keys.env
+
+# build + installer output, local secrets
+release/
+.env
+.env.*
+!.env.example
