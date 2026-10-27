@@ -5,6 +5,19 @@ A complete gym system on **React + Supabase**: member join & approval, attendanc
 ## Install it for a new branch (no coding)
 Download **`gym-software-installer.zip`** from the Releases page (or build it: `npm run installer`) and follow `INSTALL.md` inside: create a Supabase project → run one SQL file → run `node setup.mjs` → upload the `app/` folder. Everything starts blank.
 
+## What it does
+Full list by web address (what each tab does, and which need keys): **docs/FEATURES.md**. Keys and codes with a 2-line guide each: **docs/KEYS_CHECKLIST.md**. 10-minute live test: **docs/TEST_CHECKLIST.md**.
+
+| Address | Who | Purpose |
+|---|---|---|
+| `/` | Staff | Reception desk, 20 tabs |
+| `/villain` | Owner | Owner vault, 15 tabs |
+| `/warrior` | Member | Gate pass, membership, streaks, referrals |
+| `/kiosk` | Gym entrance | Face-scan and QR check-in |
+| `/join` | Public | Online join form |
+| `/selling` | Store | Shop sales |
+| `/install` | Anyone | Add-to-home-screen help |
+
 ## Run it for development
 ```bash
 npm ci
