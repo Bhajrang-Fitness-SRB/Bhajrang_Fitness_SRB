@@ -1,7 +1,6 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
-import { Activity, Bot, Pencil, TrendingUp, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Maximize2, Menu, Minus, Plus, Radio, RefreshCw, Search, Settings, ShieldAlert, ShieldCheck, Skull, Smartphone, Sparkles, Target, Trash2, Upload, UserCheck, UserPlus, Users, Wallet, X, Zap, QrCode } from 'lucide-react';
+import { Suspense, lazy, useCallback, useEffect, useState, type ChangeEvent, type CSSProperties, type FormEvent } from 'react';
+import { Activity, Bot, Pencil, TrendingUp, ArrowLeft, Flame, Mail, MessageSquare, ArrowRight, BarChart3, Bell, Calculator, Check, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, CreditCard, Download, Dumbbell, FileText, KeyRound, LayoutDashboard, Lock, LogIn, LogOut, Maximize2, Menu, Minus, Plus, Radio, RefreshCw, Search, Settings, ShieldAlert, Skull, Smartphone, Sparkles, Target, Trash2, Upload, UserCheck, UserPlus, Users, Wallet, X, Zap, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import jsQR from 'jsqr';
 import Papa from 'papaparse';
 import { supabase, type AttendanceLog, type Billing, type DayTemplateRow, type Inventory, type LapsedMember, type Lead, type Member, type Package, type PendingApproval, type SellingProduct, type SellingSale, type SellingStaff, type Staff, type WorkoutDayStruct, type WorkoutExerciseRow, type WorkoutExerciseStruct, type WorkoutPlanRow } from './lib/supabase';
 import { Kiosk } from './components/Kiosk';
@@ -15,7 +14,7 @@ const SocialInbox = lazy(() => import('./components/SocialInbox').then(m => ({ d
 const GymQr = lazy(() => import('./components/GymQr').then(m => ({ default: m.GymQr })));
 const GateScan = lazy(() => import('./components/GateScan').then(m => ({ default: m.GateScan })));
 const AgentHub = lazy(() => import('./agent-hub/AgentHub').then(m => ({ default: m.AgentHub })));
-import { MoneyDesk, ExpenseModal as MoneyExpenseModal, CashCountModal } from './components/MoneyDesk';
+import { MoneyDesk, ExpenseModal as MoneyExpenseModal } from './components/MoneyDesk';
 import { ExerciseVisual, VideoGuideLink } from './components/ExerciseVisual';
 import { RenewMembershipModal, MembershipCard, addMonthsClamped, todayIST, fmtDay, type LiveMembership } from './components/RenewalDesk';
 import { ApplicationEditModal, ApprovalResultCard, IssueChips, checkApplication, normMobile } from './components/ApprovalTools';
@@ -33,6 +32,15 @@ const money = (value: number | null | undefined) => `₹${(value ?? 0).toLocaleS
 const daysLeft = (expiry: string | null) => expiry ? Math.max(0, Math.ceil((new Date(expiry).getTime() - Date.now()) / 86400000)) : 0;
 const toCsv = (rows: Record<string, unknown>[]) => { if (!rows.length) return ''; const headers = Object.keys(rows[0]); const lines = [headers.join(','), ...rows.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))]; return lines.join('\n'); };
 const downloadCsv = (name: string, rows: Record<string, unknown>[]) => { const csv = toCsv(rows); if (!csv) return; const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
+
+/** Phones (Android Chrome) forbid `new Notification()`; they need the service worker. Falls back to an in-app toast. */
+async function showLocalNotification(title: string, body: string, fallback: () => void): Promise<void> {
+  try {
+    const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+    if (reg) { await reg.showNotification(title, { body, icon: '/brand/icon-192.png' }); return; }
+    new Notification(title, { body });
+  } catch { fallback(); }
+}
 
 function usePath(): [Path, (p: Path) => void] {
   const normalize = (raw: string): Path => { const p = raw.replace(/\/+$/, '') || '/'; return p === '/administration' ? '/' : ['/warrior', '/kiosk', '/villain', '/join', '/selling', '/install'].includes(p) ? (p as Path) : '/'; };
@@ -114,7 +122,7 @@ function AdminGate({ notify }: { notify: (m: string) => void }) {
 function Admin({ passcode, onLock, notify }: { passcode: string; onLock: () => void; notify: (m: string) => void }) {
  const [tab,setTab]=useState<AdminTab>('overview'); const [members,setMembers]=useState<Member[]>([]); const [pending,setPending]=useState<PendingApproval[]>([]); const [billing,setBilling]=useState<Billing[]>([]); const [attendance,setAttendance]=useState<AttendanceLog[]>([]); const [expenses,setExpenses]=useState<{id:number;expense_name:string|null;amount:number|null;expense_date:string|null}[]>([]); const [loading,setLoading]=useState(true); const [showExpense,setShowExpense]=useState(false); const [navOpen,setNavOpen]=useState(false); const selectTab=(t:AdminTab)=>{setTab(t);setNavOpen(false)};
  const load=useCallback(async()=>{setLoading(true); const [m,p,b,a,e]=await Promise.all([supabase.rpc('admin_list_members',{p_passcode:passcode}),supabase.rpc('admin_list_pending_approvals',{p_passcode:passcode}),supabase.rpc('admin_list_billing',{p_passcode:passcode}),supabase.rpc('admin_list_attendance',{p_passcode:passcode,p_limit:2000}),supabase.rpc('admin_list_expenses',{p_passcode:passcode})]); if(m.data)setMembers(m.data);if(p.data)setPending(p.data);if(b.data)setBilling(b.data);if(a.data)setAttendance(a.data);if(e.data)setExpenses(e.data);setLoading(false)},[passcode]); useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),10000);return()=>window.clearInterval(timer)},[load]);
- const revenue=billing.reduce((s,x)=>s+(x.paid??0),0), expenseTotal=expenses.reduce((s,x)=>s+(x.amount??0),0), active=members.filter(m=>daysLeft(m.expiry_date)>0).length, present=attendance.filter(x=>x.punch_in_time&&new Date(x.punch_in_time).toDateString()===new Date().toDateString()&&!x.punch_out_time).length;
+ const active=members.filter(m=>daysLeft(m.expiry_date)>0).length, present=attendance.filter(x=>x.punch_in_time&&new Date(x.punch_in_time).toDateString()===new Date().toDateString()&&!x.punch_out_time).length;
  const dueCount=billing.filter(x=>(x.due??0)>0).length;
  const renewalsSoon=members.filter(m=>{const d=daysLeft(m.expiry_date);return d>0&&d<=7}).length;
  const birthdaysSoon=members.filter(m=>isBirthdaySoon(m.dob,7)).length;
@@ -355,7 +363,7 @@ function WaterTracker({weightKg,notify,storageKey}:{weightKg?:number|null;notify
   useEffect(() => {
     if (!enabled) return;
     if (!('Notification' in window)) return;
-    if (Notification.permission === 'default') Notification.requestPermission();
+    if (Notification.permission === 'default') void Notification.requestPermission().catch(() => undefined);
     const iv = setInterval(() => {
       const now = new Date();
       const cur = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -365,7 +373,7 @@ function WaterTracker({weightKg,notify,storageKey}:{weightKg?:number|null;notify
       try { d = JSON.parse(localStorage.getItem(key) || '{}'); } catch { /* ignore */ }
       if (d[cur]) return; // already logged this slot
       if (Notification.permission === 'granted') {
-        new Notification('💧 Water break — Bhajrang Fitness', { body: `Drink about ${perSlotMl}ml now to hit your daily ${(targetMl/1000).toFixed(1)}L goal.` });
+        void showLocalNotification('💧 Water break — Bhajrang Fitness', `Drink about ${perSlotMl}ml now to hit your daily ${(targetMl/1000).toFixed(1)}L goal.`, () => notify(`Water reminder: drink ~${perSlotMl}ml now.`));
       } else {
         notify(`Water reminder: drink ~${perSlotMl}ml now.`);
       }

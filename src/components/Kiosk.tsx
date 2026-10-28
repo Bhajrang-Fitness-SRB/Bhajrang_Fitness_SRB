@@ -3,27 +3,13 @@ import jsQR from 'jsqr';
 import QRCode from 'qrcode';
 import { ArrowLeft, Camera, KeyRound, QrCode, ScanFace, Smartphone, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { announce, isVoiceOn, lastVoiceInfo, preloadVoices, setVoiceOn, testVoice, voiceCount } from '../lib/kioskVoice';
 import { getDescriptor, loadFaceApi, matchDescriptor, type FaceCandidate } from '../lib/faceApi';
 
 const DEVICE_KEY = 'rbf_kiosk_device_id';
-const GOODBYE_LINES = [
-  'Great session — see you next time, {name}!',
-  'Well done today, {name}. Rest, hydrate, and come back strong.',
-  "That's how champions train, {name}. Goodbye for now!",
-  'Solid effort, {name}. See you soon!',
-];
 const MANUAL_IDLE_MS = 45000; // the manual form clears itself and returns to the QR after 45 s of nobody touching it
 const RESUME_MS = 3000; // scanner pauses this long after a scan so the same pass is not read twice
 const RESULT_MS = 10000; // how long the last result stays on screen
-
-function speak(text: string) {
-  try {
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.9;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  } catch { /* speech not available on this device */ }
-}
 
 function getDeviceId(): string {
   let id = localStorage.getItem(DEVICE_KEY);
@@ -33,7 +19,7 @@ function getDeviceId(): string {
 
 type Mode = 'idle' | 'qr' | 'face';
 type Level = 'ok' | 'warn' | 'danger';
-type ScanResult = { found?: boolean; ok?: boolean; message?: string; member_id?: string; name?: string; profile_pic?: string | null; action?: string; expired?: boolean };
+type ScanResult = { found?: boolean; ok?: boolean; message?: string; member_id?: string; name?: string; profile_pic?: string | null; action?: string; expired?: boolean; days_left?: number | null; expiring_soon?: boolean; birthday?: boolean; minutes?: number | null; visits_this_month?: number | null };
 type GateQr = { state: 'loading' } | { state: 'ready'; img: string; radiusFt: number } | { state: 'not_set_up' } | { state: 'unavailable' };
 
 function Seg<T extends string>({ value, onChange, items }: { value: T; onChange: (v: T) => void; items: { key: T; label: string; icon: ReactNode }[] }) {
@@ -52,7 +38,9 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
   const [message, setMessage] = useState('');
   const [alertLevel, setAlertLevel] = useState<Level>('ok');
   const [who, setWho] = useState<{ name: string; pic: string | null } | null>(null);
-  const [logs, setLogs] = useState<{ id: string; name: string; action: string; time: string }[]>([]);
+  const [activity, setActivity] = useState<{ present_now: number; today_visits: number; rows: { id: string; name: string; action: string; at: string }[] }>({ present_now: 0, today_visits: 0, rows: [] });
+  const [voiceOn, setVoiceOnState] = useState(isVoiceOn());
+  const [voiceNote, setVoiceNote] = useState('');
   const [mode, setMode] = useState<Mode>('idle');
   const [scanKind, setScanKind] = useState<'qr' | 'face'>('qr');
   const [rightView, setRightView] = useState<'qr' | 'manual'>('qr');
@@ -79,6 +67,7 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
   const autoStarted = useRef(false);
   const resultTimer = useRef<number | null>(null);
   const idleTimer = useRef<number | null>(null);
+  const syncActivityRef = useRef<() => Promise<void>>(async () => undefined);
   approvedRef.current = approved;
 
   // Register this device and keep checking until staff approve it.
@@ -147,6 +136,21 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
     if (idleTimer.current) window.clearTimeout(idleTimer.current);
   }, [stopAll]);
 
+  // Live list straight from the database: the same on every kiosk, survives a page refresh.
+  const syncActivity = useCallback(async () => {
+    if (!approvedRef.current) return;
+    const { data, error } = await supabase.rpc('kiosk_recent_activity', { p_device_id: deviceId, p_limit: 12 });
+    if (!error && data) setActivity(data as typeof activity);
+  }, [deviceId]);
+  syncActivityRef.current = syncActivity;
+  useEffect(() => {
+    if (!approved) return;
+    void syncActivity();
+    const t = window.setInterval(() => void syncActivity(), 8000);
+    return () => window.clearInterval(t);
+  }, [approved, syncActivity]);
+  useEffect(() => { void preloadVoices(); }, []);
+
   // ---- result banner ----
   const show = useCallback((text: string, level: Level, person: { name: string; pic: string | null } | null = null) => {
     setMessage(text); setAlertLevel(level); setWho(person);
@@ -162,14 +166,9 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
     const isExpired = !!data.expired;
     const pic = data.profile_pic && /^(https?:|data:image)/.test(data.profile_pic) ? data.profile_pic : null;
     if (action === 'ALREADY-SCANNED') { show(`ALREADY SCANNED · ${name}`, 'warn', { name, pic }); return true; }
-    if (action === 'CHECK-IN') {
-      speak(`Welcome to Bhajrang Fitness, ${name}`);
-      if (isExpired) setTimeout(() => speak(`Attention. ${name}, your package has expired. Please renew at reception.`), 1600);
-    } else {
-      speak(GOODBYE_LINES[Math.floor(Math.random() * GOODBYE_LINES.length)].replace('{name}', name));
-    }
+    announce({ action: action === 'CHECK-IN' ? 'CHECK-IN' : 'CHECK-OUT', name, expired: isExpired, days_left: data.days_left, expiring_soon: data.expiring_soon, birthday: data.birthday, minutes: data.minutes, visits_this_month: data.visits_this_month });
     show(isExpired ? `${action} · ${name} · PACKAGE EXPIRED — PLEASE RENEW` : `${action} · ${name}`, isExpired ? 'danger' : 'ok', { name, pic });
-    setLogs(x => [{ id: data.member_id ?? name, name, action, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }, ...x].slice(0, 6));
+    void syncActivityRef.current();
     return true;
   }, [notify, show]);
 
@@ -396,9 +395,18 @@ export function Kiosk({ onBack, notify }: { onBack: () => void; notify: (m: stri
       <span>{message}</span>
     </div>}
 
-    {logs.length > 0 && <div className="log-list" style={{ textAlign: 'left', maxWidth: 560, margin: '24px auto 0' }}>
-      <p className="eyebrow" style={{ margin: '0' }}>Live action log</p>
-      {logs.map(x => <div className="log" key={x.id + x.time}><span><b>{x.name}</b> · {x.action}</span><span>{x.time}</span></div>)}
+    <div style={{ textAlign: 'center', margin: '16px 0 0' }}>
+      <button type="button" className="button ghost kbtn" style={{ display: 'inline-flex', width: 'auto' }}
+        onClick={() => { const next = !voiceOn; setVoiceOn(next); setVoiceOnState(next); if (next) { testVoice(); window.setTimeout(() => { const v = lastVoiceInfo(); setVoiceNote(v ? `${v.gender === 'female' ? 'Female' : 'Male'} voice: ${v.voice}` : ''); }, 300); } else setVoiceNote(''); }}>
+        {voiceOn ? '🔊 Voice on · tap to test / turn off' : '🔇 Voice off · tap to turn on'}
+      </button>
+      {voiceOn && <p className="ksub" style={{ margin: '6px 0 0', fontSize: 12 }}>{voiceNote || `${voiceCount()} voice${voiceCount() === 1 ? '' : 's'} found on this device — they rotate male / female on every scan.`}</p>}
+    </div>
+
+    {approved && <div className="log-list" style={{ textAlign: 'left', maxWidth: 560, margin: '24px auto 0' }}>
+      <p className="eyebrow" style={{ margin: '0' }}>Live attendance · inside now {activity.present_now} · today {activity.today_visits}</p>
+      {activity.rows.length === 0 && <div className="log"><span>No check-ins yet today.</span></div>}
+      {activity.rows.map(x => <div className="log" key={x.id + x.at + x.action}><span><b>{x.name}</b> · {x.action}</span><span>{new Date(x.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}</span></div>)}
     </div>}
   </div></main>;
 }

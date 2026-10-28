@@ -25,6 +25,23 @@ for (const f of files) {
   try { await db.query(fs.readFileSync(path.join(mdir, f), 'utf8').replace(/create extension if not exists (pg_net|pg_cron)[^;]*;/gi, '-- (extension provided by Supabase)')); console.log('OK  ', f); }
   catch (e) { bad++; console.log('FAIL', f, '->', e.message.split('\n')[0]); }
 }
+
+// ---- smoke test: the functions that crashed in the past must keep working ----
+let smokeBad = 0;
+const check = async (label, fn) => { try { const r = await fn(); console.log('PASS', label, r ?? ''); } catch (e) { smokeBad++; console.log('FAILED', label, '->', e.message.split('\n')[0]); } };
+let joined;
+await check('walkin_join_member (date columns)', async () => { joined = (await db.query(`select public.walkin_join_member('925529','Smoke Tester','9876543210','1999-05-05','Male','Monthly',1500,1) j`)).rows[0].j; return joined.member_id; });
+await check('kiosk_scan first = CHECK-IN, second = CHECK-OUT', async () => {
+  const a = (await db.query(`select public.kiosk_scan($1) r`, [joined.member_id])).rows[0].r;
+  const b = (await db.query(`select public.kiosk_scan($1) r`, [joined.member_id])).rows[0].r;
+  if (a.action !== 'CHECK-IN' || b.action !== 'CHECK-OUT') throw new Error(a.action + ' / ' + b.action);
+  return `${a.action} -> ${b.action}, days_left ${a.days_left}`; });
+await check('warrior_get_my_workout (array append)', async () => (await db.query(`select public.warrior_get_my_workout($1,$2) w`, [joined.member_id, joined.passcode])).rows[0].w.tiers_unlocked.join(','));
+await check('member_streak / leaderboard / referral summary', async () => { for (const f of ['member_streak','member_leaderboard','member_referral_summary']) await db.query(`select public.${f}($1,$2)`, [joined.member_id, joined.passcode]); });
+await check('admin_retention_overview', async () => { await db.query(`select public.admin_retention_overview('925529', 7)`); });
+await check('admin_dues_for_reminders / admin_list_attendance', async () => { await db.query(`select public.admin_dues_for_reminders('925529')`); await db.query(`select * from public.admin_list_attendance('925529', 10)`); });
+await check('no duplicate function overloads', async () => { const r = (await db.query(`select p.proname, string_agg(pg_get_function_identity_arguments(p.oid), ' | ') n from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prokind='f' group by 1 having count(*)>1 order by 1`)).rows; if (r.length) throw new Error(r.map(x => x.proname + ' (' + x.n + ')').join('; ')); });
+if (smokeBad) bad += smokeBad;
 const live = process.env.LIVE_TABLES ? process.env.LIVE_TABLES.split(',') : [];
 const have = (await db.query(`select tablename from pg_tables where schemaname='public'`)).rows.map(r=>r.tablename);
 if (live.length) console.log('MISSING TABLES:', live.filter(t=>!have.includes(t)).join(', '));

@@ -8,6 +8,9 @@ create extension if not exists pgcrypto with schema extensions;
 create or replace function public._today_ist() returns date
 language sql stable as $$ select (now() at time zone 'Asia/Kolkata')::date $$;
 
+-- numbers for new member IDs (SRB929 + 5 digits)
+create sequence if not exists public.member_id_seq start 1;
+
 create table if not exists public.members (
   member_id varchar(50) primary key,
   created_at timestamptz not null default timezone('utc', now()),
