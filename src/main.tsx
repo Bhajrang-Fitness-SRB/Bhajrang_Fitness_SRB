@@ -11,8 +11,17 @@ const report = (message: string) => {
   reported++;
   void supabase.rpc('log_client_error', { p_source: 'web', p_message: message, p_context: window.location.pathname }).then(() => undefined, () => undefined);
 };
-window.addEventListener('error', (e) => report(e.message || 'Unknown error'));
-window.addEventListener('unhandledrejection', (e) => report(String((e.reason && (e.reason.message || e.reason)) || 'Unhandled rejection')));
+const where = (f?: string, l?: number) => (f ? ` @ ${f.replace(window.location.origin, '').slice(0, 60)}${l ? ':' + l : ''}` : '');
+window.addEventListener('error', (e) => {
+  if (e.message === 'Script error.' && !e.filename) return; // cross-site script (no details available); nothing to act on
+  report((e.message || 'Unknown error') + where(e.filename, e.lineno));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason as { message?: string; name?: string; stack?: string } | string | undefined;
+  const text = typeof r === 'string' ? r : r?.message || r?.name || '';
+  if (!text) return; // empty rejection with no information (e.g. a cancelled camera prompt)
+  report(`${text}${typeof r === 'object' && r?.stack ? ' | ' + r.stack.split('\n')[1]?.trim().slice(0, 80) : ''}`);
+});
 
 const box: React.CSSProperties = { minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#080b12', color: '#f4f1e8', fontFamily: 'system-ui, sans-serif', padding: 24, textAlign: 'center' };
 
