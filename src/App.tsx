@@ -14,6 +14,7 @@ const SocialInbox = lazy(() => import('./components/SocialInbox').then(m => ({ d
 const GymQr = lazy(() => import('./components/GymQr').then(m => ({ default: m.GymQr })));
 const GateScan = lazy(() => import('./components/GateScan').then(m => ({ default: m.GateScan })));
 const AgentHub = lazy(() => import('./agent-hub/AgentHub').then(m => ({ default: m.AgentHub })));
+const AstroMaster = lazy(() => import('./components/AstroMaster').then(m => ({ default: m.AstroMaster })));
 import { MoneyDesk, ExpenseModal as MoneyExpenseModal } from './components/MoneyDesk';
 import { ExerciseVisual, VideoGuideLink } from './components/ExerciseVisual';
 import { RenewMembershipModal, MembershipCard, addMonthsClamped, todayIST, fmtDay, type LiveMembership } from './components/RenewalDesk';
@@ -572,7 +573,7 @@ function VillainGate({ onBack, notify }: { onBack: () => void; notify: (m: strin
 }
 
 function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void; onLock: () => void; notify: (m: string) => void; passcode: string }) {
-  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data' | 'rules' | 'fines' | 'workouts' | 'gate' | 'agent' | 'money' | 'hub' | 'social'>('overview');
+  const [tab, setTab] = useState<'overview' | 'finance' | 'staff' | 'vault' | 'packages' | 'settings' | 'data' | 'rules' | 'fines' | 'workouts' | 'gate' | 'agent' | 'money' | 'hub' | 'social' | 'astro'>('overview');
   const [members, setMembers] = useState<Member[]>([]);
   const [billing, setBilling] = useState<Billing[]>([]);
   const [expenses, setExpenses] = useState<{ id: number; expense_name: string | null; amount: number | null; expense_date: string | null; category?: string | null; payment_mode?: string | null }[]>([]);
@@ -600,7 +601,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     <button className="close mobile-close" onClick={()=>setNavOpen(false)}><X/></button>
     <div className="side-label">Villain vault</div>
     <nav className="nav">
-      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['gate','Kiosk & face scan',Radio],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['workouts','Workout Hub (PT/Prep)',Dumbbell],['rules','Gym Rule Book',FileText],['fines','Fines & Punishments',ShieldAlert],['money','Money Agent',TrendingUp],['social','Social Sales Inbox',MessageSquare],['hub','AI Agent Hub',Bot],['agent','AI Night Agent',Bot],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
+      {([['overview','Master overview',Skull],['finance','Financial Planner',BarChart3],['staff','Staff control',UserPlus],['gate','Kiosk & face scan',Radio],['vault','Member Vault Access',KeyRound],['packages','Packages',Dumbbell],['workouts','Workout Hub (PT/Prep)',Dumbbell],['rules','Gym Rule Book',FileText],['fines','Fines & Punishments',ShieldAlert],['money','Money Agent',TrendingUp],['social','Social Sales Inbox',MessageSquare],['hub','AI Agent Hub',Bot],['astro','Astro Master',Sparkles],['agent','AI Night Agent',Bot],['settings','Payment Settings',CreditCard],['data','Data & exports',Download]] as const).map(([key,label,Icon]) =>
         <button key={key} className={tab===key?'active':''} onClick={()=>{setTab(key);setNavOpen(false)}}><Icon size={16}/>{label}</button>)}
     </nav>
     <button className="button ghost" style={{margin:'20px 14px',width:'calc(100% - 28px)'}} onClick={onLock}><Lock size={14}/> Lock vault</button>
@@ -621,6 +622,7 @@ function VillainVault({ onBack, onLock, notify, passcode }: { onBack: () => void
     {tab === 'agent' && <AgentDesk passcode={passcode} notify={notify} />}
     {tab === 'social' && <Suspense fallback={<div className="panel" style={{padding:20}}>Loading…</div>}><SocialInbox passcode={passcode} notify={notify} /></Suspense>}
     {tab === 'hub' && <Suspense fallback={<div className="panel" style={{padding:20}}>Loading…</div>}><AgentHub passcode={passcode} notify={notify} /></Suspense>}
+    {tab === 'astro' && <Suspense fallback={<div className="panel" style={{padding:20}}>Loading…</div>}><AstroMaster passcode={passcode} notify={notify} /></Suspense>}
     {tab === 'money' && <MoneyDesk passcode={passcode} notify={notify} />}
     {tab === 'staff' && <StaffControl staff={staff} passcode={passcode} onRefresh={load} notify={notify} />}
     {tab === 'vault' && <MemberVaultAccess members={members} passcode={passcode} notify={notify} />}

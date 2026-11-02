@@ -38,4 +38,5 @@ export const hub = {
   deploy: (p: string, id: string) => fn(p, 'proposal_deploy', { id }),
   undo: (p: string, id: string) => fn(p, 'proposal_undo', { id }),
   githubCheck: (p: string) => fn(p, 'github_check'),
+  astro: (p: string, endpoint: 'health' | 'chart' | 'transits' | 'western-aspects' | 'wheel', birth?: Record<string, unknown>) => fn(p, 'astro_calc', { endpoint, birth }),
 };
