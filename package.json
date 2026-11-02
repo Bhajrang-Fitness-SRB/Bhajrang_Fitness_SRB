@@ -8,13 +8,14 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
-    "test": "npx -y tsx --test tests/kiosk/voice.test.ts && npx -y tsx --test tests/agent-hub/hub.test.ts && node --test tests/social-agent/social.test.mjs && node --import ./tests/social-agent/smoke/register.mjs --test tests/social-agent/smoke/flow.test.mjs && node --test tests/install/manifest.test.mjs && npx -y tsx --test tests/gate/qr.test.ts && node tests/kiosk/sql.test.mjs",
+    "test": "npx -y tsx --test tests/kiosk/voice.test.ts && npx -y tsx --test tests/agent-hub/hub.test.ts && node --test tests/social-agent/social.test.mjs && node --import ./tests/social-agent/smoke/register.mjs --test tests/social-agent/smoke/flow.test.mjs && node --test tests/install/manifest.test.mjs && npx -y tsx --test tests/gate/qr.test.ts && node --test tests/astro/astro.test.mjs",
     "test:db": "node scripts/dev/replay-migrations.mjs",
     "test:install": "bash scripts/make-installer.sh && node scripts/dev/test-install-sql.mjs",
     "installer": "bash scripts/make-installer.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
+    "astronomy-engine": "^2.1.19",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.468.0",
     "papaparse": "^5.4.1",
