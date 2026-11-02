@@ -1,30 +1,42 @@
-# Bhajrang Astro Engine (Swiss Ephemeris)
+# 🏋️ Gym Management Software
 
-A small private web service for the owner's **Astro Master**. It calculates charts with the Swiss Ephemeris
-(`pyswisseph`) and draws wheels / Western aspects with **Kerykeion**. The app still has its own built-in calculator,
-so everything keeps working if this service is off.
+A complete gym system on **React + Supabase**: member join & approval, attendance (kiosk with face scan, gate QR), billing & dues, renewals & churn, birthday and due reminders, referrals, workout & diet plans, store inventory, fines & rule book, owner/staff panels, and an optional AI Agent Hub. Installs on phones and PCs like an app (PWA).
 
-What it adds: a second, independent calculation (the app shows the difference), KP sub-lords, navamsa (D9),
-whole-sign aspects, Vimshottari to pratyantar level, true or mean Rahu/Ketu, three ayanamsas (Lahiri, Raman, Krishnamurti)
-and a chart picture.
+## Install it for a new branch (no coding)
+Download **`gym-software-installer.zip`** from the Releases page (or build it: `npm run installer`) and follow `INSTALL.md` inside: create a Supabase project → run one SQL file → run `node setup.mjs` → upload the `app/` folder. Everything starts blank.
 
-## Safety
-* Every call except `/health` needs the header `x-engine-key` (the secret `ASTRO_ENGINE_KEY`). Without the key set, the service refuses to work.
-* Only the Supabase function `agent-hub` calls it, and only after it has checked the OWNER passcode. The browser never sees the address or the key.
-* The service stores nothing. Birth details are used for one calculation and forgotten.
+## What it does
+Full list by web address (what each tab does, and which need keys): **docs/FEATURES.md**. Keys and codes with a 2-line guide each: **docs/KEYS_CHECKLIST.md**. 10-minute live test: **docs/TEST_CHECKLIST.md**.
 
-## Run the tests
-    cd astro-engine
-    pip install -r requirements-dev.txt
-    ASTRO_ENGINE_KEY=test pytest -q
-The tests compare this engine with Kerykeion, VedicAstro (KP sub-lords and dasha dates) and the app's built-in calculator.
+| Address | Who | Purpose |
+|---|---|---|
+| `/` | Staff | Reception desk, 20 tabs |
+| `/villain` | Owner | Owner vault, 15 tabs |
+| `/warrior` | Member | Gate pass, membership, streaks, referrals |
+| `/kiosk` | Gym entrance | Face-scan and QR check-in |
+| `/join` | Public | Online join form |
+| `/selling` | Store | Shop sales |
+| `/install` | Anyone | Add-to-home-screen help |
 
-## Deploy on Render (step by step)
-See the "Astro Engine setup guide" document, or: Render -> New -> Web Service -> your GitHub repo -> Root Directory `astro-engine`
--> Runtime Docker -> add environment variable `ASTRO_ENGINE_KEY` -> Create. Then in Supabase -> Edge Functions -> Secrets add
-`ASTRO_ENGINE_URL` (the https address Render gives you) and `ASTRO_ENGINE_KEY` (the same key).
+## Run it for development
+```bash
+npm ci
+cp .env.example .env     # fill VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm run dev
+```
 
-## Licences (important)
-Swiss Ephemeris/pyswisseph and Kerykeion are AGPL-3.0 (Swiss Ephemeris is also sold under a paid licence by Astrodienst).
-For a private tool only you use, this is normally fine. If you ever give access to members or the public, or sell the app,
-you must publish this service's source code or buy the commercial licence. This is not legal advice.
+| Command | What it does |
+|---|---|
+| `npm run typecheck` | TypeScript check |
+| `npm run build` | Production build into `dist/` |
+| `npm run test:db` | Replays all migrations on an empty Postgres (proves a blank install works) |
+| `npm run installer` | Builds `release/gym-software-installer.zip` |
+
+## Folders
+`src/` app · `supabase/migrations/` database (baseline first, then every change) · `supabase/functions/` edge functions (WhatsApp, email, push, Telegram, AI) · `setup/` optional cron & backup jobs · `website/` public gym website · `installer/` + `scripts/` installer tools · `docs/` feature guides · `archive/` unused experiments.
+
+## Security notes
+All member, staff and owner data is reached only through passcode-checked database functions; the public key cannot read or change member tables. **Change the Owner passcode on first login.** Never commit `.env` or a `service_role` key.
+
+## Optional CI
+Copy `docs/ci.yml.example` to `.github/workflows/ci.yml` (GitHub needs a token with the workflow scope, or add it in the web editor).

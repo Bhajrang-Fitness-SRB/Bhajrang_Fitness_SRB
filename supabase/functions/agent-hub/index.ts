@@ -572,6 +572,30 @@ async function githubCheck() {
   } catch (e) { return json({ ok: false, error: short(e, 250) }); }
 }
 
+// ------------------------------------------------------------------ Astro Engine (Swiss Ephemeris service)
+// The engine is a separate Python web service (folder astro-engine/). Its address and key live ONLY in Supabase secrets,
+// never in the browser. The caller is already proven to be the owner before this runs.
+const ASTRO_ENDPOINTS = new Set(['health', 'chart', 'transits', 'western-aspects', 'wheel']);
+async function astroCalc(b: Any) {
+  const url = (Deno.env.get('ASTRO_ENGINE_URL') ?? '').trim().replace(/\/+$/, ''); const key = Deno.env.get('ASTRO_ENGINE_KEY') ?? '';
+  if (!url || !key) return json({ ok: false, code: 'engine_not_configured', error: 'The Swiss Ephemeris engine is not connected yet (ASTRO_ENGINE_URL and ASTRO_ENGINE_KEY secrets are missing). The built-in calculator is still working.' });
+  if (!/^https:\/\//.test(url)) return json({ ok: false, code: 'engine_not_configured', error: 'ASTRO_ENGINE_URL must start with https://' });
+  const ep = typeof b.endpoint === 'string' ? b.endpoint : 'chart';
+  if (!ASTRO_ENDPOINTS.has(ep)) return json({ ok: false, error: 'Unknown engine endpoint.' }, 400);
+  // only forward the known birth fields, with sane types
+  const i = (b.birth ?? {}) as Any;
+  const payload = { name: str(i.name, 80) || 'Native', date: str(i.date, 10), time: str(i.time, 5) || '12:00', tz_hours: Number(i.tz_hours ?? 5.5), lat: Number(i.lat), lon: Number(i.lon),
+    ayanamsa: ['lahiri', 'raman', 'krishnamurti'].includes(i.ayanamsa) ? i.ayanamsa : 'lahiri', node: i.node === 'true' ? 'true' : 'mean', at: str(i.at, 40) || undefined };
+  try {
+    // A sleeping free-tier server can take up to a minute to wake up, so allow for that.
+    const r = ep === 'health' ? await fetch(`${url}/health`, { signal: AbortSignal.timeout(60_000) })
+      : await fetch(`${url}/${ep}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-engine-key': key }, body: JSON.stringify(payload), signal: AbortSignal.timeout(60_000) });
+    const text = await r.text(); let data: Any = null; try { data = JSON.parse(text); } catch { /* not json */ }
+    if (!r.ok) return json({ ok: false, code: 'engine_error', status: r.status, error: short(data?.detail ?? data?.error ?? text, 250) });
+    return json({ ok: true, ...data });
+  } catch (e) { return json({ ok: false, code: 'engine_unreachable', error: 'Could not reach the Swiss Ephemeris engine (it may be waking up - try again in a minute). ' + short(e, 120) }); }
+}
+
 // ------------------------------------------------------------------ entry
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -589,6 +613,7 @@ Deno.serve(async (req: Request) => {
       case 'proposal_deploy': return await proposalDeploy(b);
       case 'proposal_undo': return await proposalUndo(b);
       case 'github_check': return await githubCheck();
+      case 'astro_calc': return await astroCalc(b);
       default: return json({ error: 'Unknown action.' }, 400);
     }
   } catch (e) { await log('error', { action: b.action, error: short(e, 300) }); return json({ ok: false, error: short(e, 300) }, 500); }
