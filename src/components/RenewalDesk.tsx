@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PackagePicker, defaultRenewal } from './PackagePicker';
 import { Check, X } from 'lucide-react';
 import { supabase, type Billing, type Member, type Package } from '../lib/supabase';
 
@@ -34,7 +35,7 @@ type Props = {
 export function RenewMembershipModal({ passcode, members, billing, packages, memberId, invoice, onClose, onSaved, notify }: Props) {
   const [mode, setMode] = useState<'renew' | 'other'>('renew');
   const [mid, setMid] = useState(memberId || invoice?.member_id || members[0]?.member_id || '');
-  const guess = useMemo(() => packages.find(p => norm(p.name) === norm(invoice?.package_name)) ?? packages[0], [packages, invoice]);
+  const guess = useMemo(() => packages.find(p => norm(p.name) === norm(invoice?.package_name)) ?? defaultRenewal(packages), [packages, invoice]);
   const [pkgName, setPkgName] = useState(guess?.name ?? '');
   const [startDate, setStartDate] = useState('');
   const [startTouched, setStartTouched] = useState(false);
@@ -50,7 +51,7 @@ export function RenewMembershipModal({ passcode, members, billing, packages, mem
   const prevBill = useMemo(() => billing.filter(b => b.member_id === mid && b.expiry_date).sort((a, b) => b.id - a.id)[0], [billing, mid]);
   const prevStart = prevBill?.start_date || prevBill?.payment_date || null;
 
-  useEffect(() => { if (!pkgName && packages.length) setPkgName(packages[0].name); }, [packages, pkgName]);
+  useEffect(() => { if (!pkgName && packages.length) setPkgName((defaultRenewal(packages) ?? packages[0]).name); }, [packages, pkgName]);
   useEffect(() => { if (!startTouched) setStartDate(autoStart(member?.expiry_date)); }, [member?.expiry_date, startTouched, mid]);
   useEffect(() => { if (pkg && mode === 'renew') { setAmount(String(invoice?.amount && norm(invoice.package_name) === norm(pkg.name) ? invoice.amount : pkg.price)); setPaid(''); } }, [pkg, mode, invoice]);
 
@@ -96,7 +97,7 @@ export function RenewMembershipModal({ passcode, members, billing, packages, mem
           <div className="muted">{member?.package || '—'} · {prevStart ? `${fmtDay(prevStart)} → ` : 'ends '}{fmtDay(member?.expiry_date)}</div>
         </div>
         <div className="field full"><label>New package</label>
-          <select value={pkgName} onChange={e => setPkgName(e.target.value)}>{packages.map(p => <option key={p.id} value={p.name}>{p.name} — {money(p.price)} ({p.duration_months} mo)</option>)}</select></div>
+          <PackagePicker packages={packages} value={pkgName} onChange={setPkgName} /></div>
         <div className="field"><label>Start date <span className="muted" style={{ fontSize: 11 }}>{startTouched ? '(changed)' : '(auto)'}</span></label>
           <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setStartTouched(true); }} /></div>
         <div className="field"><label>New expiry (auto)</label><input type="date" value={endDate} readOnly style={{ opacity: .85 }} /></div>

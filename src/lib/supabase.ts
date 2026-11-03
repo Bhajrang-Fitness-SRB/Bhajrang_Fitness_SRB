@@ -97,6 +97,7 @@ export type Inventory = {
 export type Package = {
   id: string;
   name: string;
+  category?: 'Membership' | 'PT' | string;
   duration_months: number;
   price: number;
   description: string | null;
