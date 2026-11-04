@@ -1,0 +1,96 @@
+# Migration history alignment (2 Nov 2026)
+
+The Supabase GitHub check "Supabase Preview" failed with "Remote migration versions not found in local migrations directory",
+because the live database history used different version numbers than the files in `supabase/migrations`.
+
+**What was done:** the live table `supabase_migrations.schema_migrations` (bookkeeping only, no data or schema) was rewritten so that
+it lists exactly the 55 files in this folder that are already in effect on the live database. Two files are intentionally **not** listed:
+`rbf_social_sales_agent` and `rbf_social_inbox_rpcs` (not applied yet; `supabase db push` will apply them when you are ready).
+
+**From now on:** create every change as a file here first (name `YYYYMMDDHHMMSS_name.sql`), then apply that same file with `supabase db push`.
+Do not apply SQL directly to the live project, or the two lists drift apart again.
+
+## The old live history (82 entries, kept in case you ever need to revert)
+```
+20260806094618 create_approve_member_function
+20260807150146 update_approve_member_with_paid_amount
+20260808035723 add_missing_registration_fields
+20260808041949 approve_member_full_profile_v3
+20260821202005 enable_rls_all_tables
+20260821202100 lock_down_approve_member
+20260821202133 revoke_public_execute_approve_member
+20260821202159 revoke_anon_table_grants
+20260823171042 rbf_complete_existing_schema
+20260828191555 rbf_staff_table
+20260828200739 rbf_diary_table
+20260828202009 rbf_inventory_table
+20260829030451 rbf_inventory_table
+20260829035607 rbf_health_intake_fields
+20260830200926 rbf_notices_freeze_settings
+20260913151621 rbf_approve_member_flexible_dates
+20260914055053 rbf_security_hardening
+20260914055110 rbf_approve_member_passcode_gate
+20260915150003 rbf_lock_owner_credentials
+20260915150043 rbf_fix_crypt_search_path
+20260915150448 rbf_drop_ungated_approve_member_overloads
+20260915150932 rbf_member_edit_and_change_requests
+20260915151148 rbf_fix_member_update_casts
+20260915185524 rbf_owner_member_vault_access
+20260915185544 rbf_fix_member_vault_types
+20260915190807 rbf_photo_storage_buckets
+20260919080622 rbf_package_management
+20260919150809 rbf_packages_brochure_payment_method
+20260919150826 rbf_brochure_storage_bucket
+20260919204249 rbf_brochure_setting_rpc
+20260922004008 selling_store_foundation
+20260922191746 rbf_leads_recovery_list
+20260923012554 revoke_unused_anon_delete_capability
+20260923012847 add_admin_list_members_and_billing
+20260923012914 add_kiosk_scan_rpc
+20260923012922 revoke_anon_select_members_billing
+20260923184042 rbf_fix_lapsed_members_types
+20260925103552 rbf_workout_plan_hub
+20261007005115 kiosk_device_gated_scan_and_close_anon_updates
+20261007005455 face_scan_hardening_and_passcode_reset_fix
+20261007010433 member_login_auto_passcode_dd_plus_mobile
+20261007205449 rbf_owner_lockout_safe
+20261007210117 rbf_member_face_scan_optin
+20261007210955 rbf_member_profile_pic_change
+20261007211542 rbf_rule_book_and_fines
+20261008094201 rbf_ai_night_agent
+20261008204230 rbf_approval_fixes
+20261011052629 rbf_exercise_visuals
+20261012192039 rbf_membership_renewals
+20261013023002 rbf_money_agent
+20261015041617 rbf_payment_status
+20261015043044 rbf_pt_packages
+20261017111840 rbf_agent_hub
+20261020185106 rbf_lockdown_2_gated_functions
+20261020185117 rbf_lockdown_2b_progress_photos
+20261020185159 rbf_lockdown_1_safe_now
+20261024133951 rbf_fix_approve_member_pt
+20261024134810 rbf_audit_security_fixes
+20261024205024 rbf_admin_import_members
+20261025185923 rbf_gate_qr_attendance
+20261025212445 rbf_kiosk_dual_screen
+20261026135908 rbf_retention_desk
+20261026141846 add_missing_foreign_key_indexes
+20261026142007 payment_status_invoices_reminders
+20261026142229 remove_test_billing_rows_srb92900065
+20261026143916 drop_redundant_invoices_table
+20261026201011 lock_down_public_table_access
+20261026203827 rbf_close_members_open_access
+20261026211511 admin_login_lockout
+20261026211545 admin_reminder_functions
+20261026211623 remove_redundant_push_subscriptions
+20261026211721 reminder_channels_whatsapp_email
+20261027055236 rbf_referrals_streaks
+20261028140056 kiosk_attendance_fix_and_voice_data
+20261028192559 rbf_kiosk_attendance_fix_and_sync
+20261028195256 rbf_fix_walkin_join_and_member_workout
+20261028195735 rbf_walkin_join_no_pt_fix
+20261029122945 replace_packages_with_new_rate_card
+20261029123221 packages_bn_student_freeze_referral
+20261101135047 rbf_fix_renew_membership_pt
+20261101184426 rbf_astro_master
+20261102092848 rbf_astro_engine_secrets```
