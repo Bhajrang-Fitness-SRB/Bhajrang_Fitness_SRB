@@ -70,7 +70,11 @@ Steps:
 1. developers.facebook.com → **My Apps → Create App → Business** → add the **WhatsApp** product.
 2. WhatsApp → **API Setup**: copy the **Phone number ID**.
 3. The temporary token on that page **dies in 24 hours**. Make a permanent one: business.facebook.com → **Business Settings → Users → System users → Add** (Admin) → **Add assets** (your WhatsApp account, Full control) → **Generate token** → tick `whatsapp_business_messaging` and `whatsapp_business_management` → copy it.
-4. WhatsApp → **Message templates**: create and get approved (takes minutes to hours): `membership_renewal`, `birthday_wish`, `payment_due`. Each body uses `{{1}}`, `{{2}}` in the order the reminder screen sends (name first). Language: English (`en_US`) unless you change `WHATSAPP_TEMPLATE_LANG`.
+4. WhatsApp → **Message templates**: create and get approved (takes minutes to hours): `membership_renewal`, `birthday_wish`, `payment_due`. Exact fields your app sends (use these in the template text):
+   - `membership_renewal`: `{{1}}` = member name, `{{2}}` = expiry date. Example: "Hi {{1}}, your membership expires on {{2}}. Renew soon to keep your streak going!"
+   - `birthday_wish`: `{{1}}` = member name. Example: "Happy Birthday {{1}}! Team Bhajrang Fitness wishes you a strong and healthy year."
+   - `payment_due`: `{{1}}` = member name, `{{2}}` = amount pending (for example ₹1,500). Example: "Hi {{1}}, {{2}} is pending on your account. Please clear it at your convenience."
+   Choose category **Utility** and language English (`en_US`), unless you change `WHATSAPP_TEMPLATE_LANG`.
 5. Supabase → Edge Functions → **Secrets** → add:
    `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`.
    Optional: `WHATSAPP_TEMPLATE_RENEWAL`, `WHATSAPP_TEMPLATE_BIRTHDAY`, `WHATSAPP_TEMPLATE_DUE`, `WHATSAPP_TEMPLATE_LANG`, `DEFAULT_COUNTRY_CODE` (91).
