@@ -5,14 +5,14 @@
 ------------------------------------------------------------------- */
 window.SITE = {
   // Your gym-management app (your app web address)
-  APP_URL: "",
+  APP_URL: "https://bhajrang-fitness-srb.onrender.com",
 
   // Contact details — fill these in to switch on the call / WhatsApp / map buttons
-  PHONE: "",            // e.g. "+919876543210"
-  WHATSAPP: "",         // digits only with country code, e.g. "919876543210"
-  ADDRESS: "",          // e.g. "Main Road, Bishnupur, West Bengal"
-  MAP_URL: "",          // Google Maps share link
-  INSTAGRAM: "",        // full link, e.g. "https://instagram.com/yourgym"
-  FACEBOOK: "",         // full link
+  PHONE: "",            // "+919239335561"
+  WHATSAPP: "",         // "919239335561"
+  ADDRESS: "",          // "Simurali UP Side,Near MeDplus 2nd floor of Jio Center,Chakdaha, West Bengal"
+  MAP_URL: "",          // "https://maps.app.goo.gl/5YnUJ5J4cJM8bMRMA"
+  INSTAGRAM: "",        // "https://www.instagram.com/bhajrang_fitness?utm_source=ig_web_button_share_sheet&srtk=ZDNlZDc0MzIxNw=="
+  FACEBOOK: "",         // "https://www.facebook.com/BHAJRANGFITNESS"
   YOUTUBE: ""           // full link
 };
