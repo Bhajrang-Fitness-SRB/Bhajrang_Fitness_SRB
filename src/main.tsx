@@ -59,7 +59,10 @@ if ('serviceWorker' in navigator) {
         refreshed = true;
         window.location.reload();
       });
-      reg.update();
+      // Some in-app browsers (Instagram/Facebook/WebViews) resolve with nothing or reject the update.
+      reg?.update?.().catch(() => {});
+    }).catch(() => {
+      // Registration is optional (offline/install support); the app works without it, so never surface it as an error.
     });
   });
 }
