@@ -577,8 +577,10 @@ async function githubCheck() {
 // never in the browser. The caller is already proven to be the owner before this runs.
 const ASTRO_ENDPOINTS = new Set(['health', 'chart', 'transits', 'western-aspects', 'wheel']);
 async function astroCalc(b: Any) {
-  const url = (Deno.env.get('ASTRO_ENGINE_URL') ?? '').trim().replace(/\/+$/, ''); const key = Deno.env.get('ASTRO_ENGINE_KEY') ?? '';
-  if (!url || !key) return json({ ok: false, code: 'engine_not_configured', error: 'The Swiss Ephemeris engine is not connected yet (ASTRO_ENGINE_URL and ASTRO_ENGINE_KEY secrets are missing). The built-in calculator is still working.' });
+  // Address and key: a Supabase function secret wins; otherwise the encrypted Vault copy (hub_astro_engine_url / hub_astro_engine_key).
+  const url = ((Deno.env.get('ASTRO_ENGINE_URL') || await secret('hub_astro_engine_url')) ?? '').trim().replace(/\/+$/, '');
+  const key = Deno.env.get('ASTRO_ENGINE_KEY') || (await secret('hub_astro_engine_key')) || '';
+  if (!url || !key) return json({ ok: false, code: 'engine_not_configured', error: 'The Swiss Ephemeris engine is not connected yet (its address and key are not saved). The built-in calculator is still working.' });
   if (!/^https:\/\//.test(url)) return json({ ok: false, code: 'engine_not_configured', error: 'ASTRO_ENGINE_URL must start with https://' });
   const ep = typeof b.endpoint === 'string' ? b.endpoint : 'chart';
   if (!ASTRO_ENDPOINTS.has(ep)) return json({ ok: false, error: 'Unknown engine endpoint.' }, 400);

@@ -22,7 +22,7 @@ type Member = { member_id: string; name: string | null; phone: string | null; wh
 /** Owner: see which integrations are configured and send a real test to a member (default: the owner's own profile). */
 function ConnectionsCheck({ passcode, notify }: { passcode: string; notify: (m: string) => void }) {
   const [status, setStatus] = useState<Status | null>(null);
-  const [memberId, setMemberId] = useState('SRB92900107');
+  const [memberId, setMemberId] = useState('');
   const [results, setResults] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState('');
 

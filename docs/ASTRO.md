@@ -1,29 +1,53 @@
 # Astro Master (owner only)
 
-One screen in your Villain Vault that combines **Vedic astrology (jyotish), numerology and tarot**, and turns them into daily, weekly, monthly and yearly guidance in plain language.
+One screen in the owner vault (`/villain` → **Astro Master**) that combines **Vedic astrology (jyotish), numerology and tarot**
+and turns them into daily, weekly, monthly and yearly guidance in plain language.
 
-## How it works (and why you can trust the numbers)
-* **Exact calculations on your own device, free.** Planet positions, rising sign (lagna), nakshatra, Vimshottari dasha periods, tithi, Saturn Sade Sati and daily transits are computed with the open-source `astronomy-engine` library (Lahiri sidereal zodiac, whole-sign houses, mean Rahu/Ketu). Numerology uses the Pythagorean method (11/22/33 kept as master numbers). Tarot uses a fair random draw from all 78 cards, 30% reversed.
-* **The free AI only interprets** those computed facts through the Agent Hub (Gemini, Groq and others with automatic fail-over). It cannot invent positions.
-* **Pictures** (a chart photo, a palm photo): read by the free Gemini AI only. It describes what it can see and says how sure it is.
-* **Private.** Birth details and saved readings sit in tables the public key cannot read; only the owner passcode opens them.
+## The three parts (all wired and live)
 
-## Setup
-1. The Agent Hub must already be installed (SQL `20261019...`, `ai-hub` function, at least one free key; for pictures you need `GEMINI_API_KEY`).
-2. Run `supabase/migrations/20261023000000_rbf_astro_master.sql` in the Supabase SQL Editor.
-3. **Re-deploy** the function (it now understands pictures): `supabase functions deploy ai-hub --no-verify-jwt`.
-4. In your app: `npm install astronomy-engine`, copy `src/lib/astro.ts` and `src/components/AstroMaster.tsx`, then apply the patches in this order: inbox patch, `app-wiring-hub.patch`, lock-down `app-lockdown.patch`, then `setup/app-wiring-astro.patch`.
-5. Open Villain Vault → **Astro Master** → People → add your birth date, time and place (tick "This is me").
+| Part | What it does | Where it runs |
+|---|---|---|
+| **Built-in calculator** | Planets, lagna, nakshatra, dasha, tithi, Sade Sati, transits (`astronomy-engine`, Lahiri, whole-sign houses, mean Rahu/Ketu). Numerology (Pythagorean) and a fair 78-card tarot draw. | In the browser (`src/lib/astro.ts`). Always works, no keys. |
+| **Swiss Ephemeris engine** | A second, independent calculation: KP sub-lords, navamsa (D9), Vimshottari to pratyantar, true or mean Rahu/Ketu, three ayanamsas (Lahiri, Raman, Krishnamurti), chart wheel. The app shows any difference from the built-in result. | Render web service `bhajrang-astro-engine` (folder `astro-engine/`). |
+| **AI interpretation** | Turns the computed facts into guidance. It cannot invent positions. | Agent Hub (`astro_master` agent) with automatic fail-over across the free providers. |
+
+```
+Astro Master screen ──► Supabase function agent-hub (owner passcode checked) ──► Render astro-engine  (/chart, /transits, /wheel, /western-aspects)
+                                   └────────────────────────────────────────────► free AI providers (Groq / Gemini …)
+```
+
+The browser never sees the engine address or key. They are stored encrypted in the Supabase Vault
+(`hub_astro_engine_url`, `hub_astro_engine_key`) and only `agent-hub` reads them. A Supabase function secret of the same
+name (`ASTRO_ENGINE_URL`, `ASTRO_ENGINE_KEY`) takes priority if you set one.
+
+## Keeping it fast
+Render's free plan puts the engine to sleep after 15 idle minutes and a cold start takes about a minute.
+The database therefore pings `/health` every 10 minutes (`pg_cron` job `astro-engine-keepalive`, migration
+`20261116015456`). One always-on free service fits inside Render's 750 free hours a month.
+To stop it: `select cron.unschedule('astro-engine-keepalive');`
+
+## Setup on a new install
+1. Run the migrations (`supabase/migrations/…rbf_astro_master.sql` creates the private tables and owner-only functions).
+2. Deploy the engine: Render → New → Web Service → this repo → Root Directory `astro-engine` → Runtime Docker →
+   environment variable `ASTRO_ENGINE_KEY` (any long random string). See `astro-engine/README.md`.
+3. Save the engine address and the same key in the Agent Hub secrets (names above), or as Supabase function secrets.
+4. Deploy the function: `supabase functions deploy agent-hub`.
+5. Add at least one free AI key in Agent Hub → AI Pool (Groq or Google Gemini). Pictures (chart or palm photo) need a Gemini key.
+6. Open `/villain` → **Astro Master** → People → add birth date, time and place (tick "This is me").
+
+## How to check it is working
+* Engine health (no key needed): open `https://<your-engine>.onrender.com/health`. It shows `"ok": true`.
+* Agent Hub → **AI Pool** → **Test** on each provider. An "Invalid API key" result means that slot needs a new key.
+* In Astro Master, the **Swiss Ephemeris check** panel shows *connected* when the engine answered, or *not connected: using built-in* (the built-in calculator keeps working). The first call after a long idle can say "Waking the engine up".
 
 ## Honest limits
-* Astrology, numerology and tarot are traditions for reflection, not proven science. The screen says so, and the AI is told to speak in tendencies, never certainties.
-* Built-in guard rails: no predictions of death, accidents, serious illness or court results; no fear talk; no selling gemstones or pujas; no medical, legal or investment advice; a caring response if you sound distressed.
-* Accuracy: positions are accurate to a fraction of a degree. The rising sign changes about every 2 hours, so a wrong birth time gives a wrong lagna and houses. If you do not know the time, tick "unknown" (Moon sign, nakshatra and dasha stay approximately right).
-* Different schools differ (ayanamsa, house system, dasha year length). Ask a family jyotishi if your tradition differs.
-* Place list has 25 cities; others need latitude and longitude typed in.
-* Daily guidance is made when you press the button. Automatic morning messages (WhatsApp/notification) can be added later.
+* Astrology, numerology and tarot are traditions for reflection, not proven science. The screen says so, and the AI speaks in tendencies, never certainties.
+* Guard rails: no predictions of death, accidents, serious illness or court results; no fear talk; no selling gemstones or pujas; no medical, legal or investment advice; a caring reply if you sound distressed.
+* Accuracy: positions are accurate to a fraction of a degree. The rising sign changes about every 2 hours, so a wrong birth time gives a wrong lagna and houses. If the time is unknown, tick "unknown".
+* Schools differ (ayanamsa, house system, dasha year length). Ask a family jyotishi if your tradition differs.
+* The place list has 25 cities; others need latitude and longitude typed in.
+* Licence: Swiss Ephemeris and Kerykeion are AGPL-3.0. For a private owner-only tool this is normally fine. If you give members or the public access, or sell the app, you must publish the engine source or buy the commercial licence. This is not legal advice.
 
 ## Tests
-* `node --test tests/astro.test.mjs`: 12 checks. Sun and Moon against published values, precession, Mesha/Makara ingress dates, the rising point is really rising (altitude about 0 and in the east), moon phase agreement, new/full moon tithis, dasha continuity and 120 years, numerology, 78 unique tarot cards and fair draws.
-* `node --import ./tests/smoke/register.mjs --test tests/smoke/hub.test.mjs`: includes the picture path (only Gemini is asked, bad pictures refused).
-* `tests/astro.sql.test.mjs`: real Postgres check that only the owner can read or write profiles and readings.
+* `node --test tests/astro/astro.test.mjs` — 12 checks of the built-in calculator (Sun and Moon against published values, ingress dates, rising point, tithis, dasha continuity, numerology, 78 unique tarot cards).
+* `cd astro-engine && pip install -r requirements-dev.txt && ASTRO_ENGINE_KEY=test pytest -q` — engine against Kerykeion, VedicAstro and the built-in calculator.

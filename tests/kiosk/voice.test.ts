@@ -22,8 +22,8 @@ test('always 10 alternating slots, even with few voices', () => {
   assert.ok(combos.size >= 6, 'reused voices must still sound different');
 });
 test('welcome + birthday + expiring reminder', () => {
-  const t = buildLines({ action: 'CHECK-IN', name: 'rehana khatun', birthday: true, expiring_soon: true, days_left: 3, visits_this_month: 12 }, 1, 9).join(' ');
-  assert.match(t, /Rehana/); assert.match(t, /birthday/i); assert.match(t, /ends in 3 days/); assert.match(t, /12 gym days/);
+  const t = buildLines({ action: 'CHECK-IN', name: 'asha devi', birthday: true, expiring_soon: true, days_left: 3, visits_this_month: 12 }, 1, 9).join(' ');
+  assert.match(t, /Asha/); assert.match(t, /birthday/i); assert.match(t, /ends in 3 days/); assert.match(t, /12 gym days/);
 });
 test('exit mentions minutes; expired is gentle', () => {
   const t = buildLines({ action: 'CHECK-OUT', name: 'Raj', minutes: 54, expired: true, days_left: -2 }, 2, 19).join(' ');

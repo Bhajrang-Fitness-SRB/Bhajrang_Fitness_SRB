@@ -33,7 +33,20 @@ npm run dev
 | `npm run installer` | Builds `release/gym-software-installer.zip` |
 
 ## Folders
-`src/` app · `supabase/migrations/` database (baseline first, then every change) · `supabase/functions/` edge functions (WhatsApp, email, push, Telegram, AI) · `setup/` optional cron & backup jobs · `website/` public gym website · `installer/` + `scripts/` installer tools · `docs/` feature guides · `archive/` unused experiments.
+| Folder | What it holds |
+|---|---|
+| `src/` | The app (React + TypeScript): staff desk, owner vault, member app, kiosk, Agent Hub, Astro Master |
+| `public/` | Icons, install manifests, service worker, `config.js` (runtime settings) |
+| `supabase/migrations/` | Database: baseline first, then every change (file name `YYYYMMDDHHMMSS_name.sql`) |
+| `supabase/functions/` | Edge functions: WhatsApp, email, push, Telegram, AI Agent Hub, social agent |
+| `astro-engine/` | Swiss Ephemeris service for Astro Master (separate Render service, Docker) |
+| `website/` | Public gym website (plain HTML/CSS/JS, separate Render static site) |
+| `tests/` | Automated checks, one folder per feature |
+| `installer/`, `scripts/` | Blank-install kit, backup and key tools |
+| `setup/` | Optional cron and backup jobs |
+| `docs/` | Guides (start at `docs/README.md`) |
+
+Deployed on Render from this branch: the app (static, `npm run build` → `dist`), `website/` (static) and `astro-engine/` (Docker).
 
 ## Security notes
 All member, staff and owner data is reached only through passcode-checked database functions; the public key cannot read or change member tables. **Change the Owner passcode on first login.** Never commit `.env` or a `service_role` key.
